@@ -1,5 +1,5 @@
+import type { Article, ArticleListItem } from "@devgraph/shared";
 import { pool } from "../db";
-
 export interface ArticleInput {
 	slug: string;
 	title: string;
@@ -26,23 +26,6 @@ export async function upsertArticle(article: ArticleInput): Promise<void> {
 			article.publishedAt,
 		],
 	);
-}
-
-export interface ArticleListItem {
-	slug: string;
-	title: string;
-	published_at: Date | null;
-}
-// 상세용 (전체)
-export interface Article {
-	id: number;
-	slug: string;
-	title: string;
-	body: string;
-	source_path: string;
-	published_at: Date | null;
-	created_at: Date;
-	updated_at: Date;
 }
 
 export async function getArticles(): Promise<ArticleListItem[]> {
