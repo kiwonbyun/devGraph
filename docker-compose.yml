@@ -1,0 +1,20 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: devgraph        # 만들 DB 유저 이름
+      POSTGRES_PASSWORD: devgraph    # 그 유저 비번 (로컬 개발용이라 단순해도 OK)
+      POSTGRES_DB: devgraph          # 자동으로 만들 데이터베이스 이름
+    ports:
+      - "5432:5432"                    # 로컬에서 접근할 포트
+    volumes:
+      - dbdata:/var/lib/postgresql/data  # 데이터 영속화
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U devgraph -d devgraph"]  # DB가 접속 받을 준비됐나 검사
+      interval: 5s       # 5초마다 검사
+      timeout: 5s        # 5초 안에 응답 없으면 이번 검사 실패
+      retries: 10        # 10번 연속 실패면 unhealthy 판정
+
+
+volumes:
+  dbdata:
