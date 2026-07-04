@@ -21,7 +21,7 @@ export async function ingest(contentDir: string): Promise<number> {
 			title,
 			body: content,
 			sourcePath: file,
-			publishedAt: dateRaw && !isNaN(dateRaw.getTime()) ? dateRaw : null,
+			publishedAt: dateRaw && !Number.isNaN(dateRaw.getTime()) ? dateRaw : null,
 		};
 		await upsertArticle(input);
 		count++;

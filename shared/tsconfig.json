@@ -1,11 +1,11 @@
 {
-  "compilerOptions": {
-    "strict": true,
-    "noEmit": true,
-    "module": "ESNext",
-    "moduleResolution": "Bundler",
-    "verbatimModuleSyntax": true,
-    "skipLibCheck": true
-  },
-  "include": ["src"]
+	"compilerOptions": {
+		"strict": true,
+		"noEmit": true,
+		"module": "ESNext",
+		"moduleResolution": "Bundler",
+		"verbatimModuleSyntax": true,
+		"skipLibCheck": true
+	},
+	"include": ["src"]
 }
