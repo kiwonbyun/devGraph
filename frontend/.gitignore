@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# TanStack Router 자동 생성물 (vite/dev 시 재생성)
+src/routeTree.gen.ts
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
