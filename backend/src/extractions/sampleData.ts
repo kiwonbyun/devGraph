@@ -1,0 +1,317 @@
+import type { IndustryEdgeType, IndustryNodeType } from "@devgraph/shared";
+
+export interface NodeCandidatePayload {
+	key: string;
+	name: string;
+	node_type: IndustryNodeType;
+	description: string;
+	evidence_ordinals: number[];
+}
+
+export interface EdgeCandidatePayload {
+	source_key: string;
+	target_key: string;
+	edge_type: IndustryEdgeType;
+	description: string;
+	evidence_ordinals: number[];
+}
+
+export interface CompanyRoleCandidatePayload {
+	company_name: string;
+	is_listed: boolean;
+	ticker: string | null;
+	node_key: string;
+	role: string;
+	evidence_ordinal: number;
+}
+
+export const sampleNodeCandidates: NodeCandidatePayload[] = [
+	{
+		key: "soybean",
+		name: "원료 대두",
+		node_type: "commodity",
+		description: "국내에서 착유하기 위해 수입하는 식물 원료.",
+		evidence_ordinals: [1, 2, 5],
+	},
+	{
+		key: "crude-oil",
+		name: "식물성 원유",
+		node_type: "commodity",
+		description:
+			"해외에서 수입해 국내 정제 공정에 투입되는 crude vegetable oil.",
+		evidence_ordinals: [1, 2, 5],
+	},
+	{
+		key: "port-terminal",
+		name: "항만/탱크터미널",
+		node_type: "sector",
+		description: "수입 식물성 원유를 항만에서 받아 저장하는 인프라.",
+		evidence_ordinals: [1],
+	},
+	{
+		key: "crushing",
+		name: "착유",
+		node_type: "process",
+		description: "원료 대두에서 기름과 대두박을 분리하는 공정.",
+		evidence_ordinals: [1, 2],
+	},
+	{
+		key: "refining",
+		name: "정제",
+		node_type: "process",
+		description:
+			"식물성 원유를 판매 가능한 식용유나 튀김유 형태로 만드는 공정.",
+		evidence_ordinals: [1],
+	},
+	{
+		key: "frying-oil",
+		name: "튀김유",
+		node_type: "commodity",
+		description: "치킨프랜차이즈와 식품 제조업체에 대량 판매되는 식용유 제품.",
+		evidence_ordinals: [1, 5],
+	},
+	{
+		key: "soybean-meal",
+		name: "대두박",
+		node_type: "commodity",
+		description: "착유 과정에서 나오는 사료의 주원료.",
+		evidence_ordinals: [2, 3, 5],
+	},
+	{
+		key: "feed-mixing",
+		name: "배합사료 제조",
+		node_type: "process",
+		description: "대두박, 수입 대두박, 곡물 등을 섞어 사료를 만드는 공정.",
+		evidence_ordinals: [3, 5],
+	},
+	{
+		key: "compound-feed",
+		name: "배합사료",
+		node_type: "commodity",
+		description: "육계계열화업체가 구매해 농가에 공급하는 사료.",
+		evidence_ordinals: [3, 4, 5],
+	},
+	{
+		key: "broiler-integrator",
+		name: "육계계열화업체",
+		node_type: "sector",
+		description:
+			"사료와 병아리를 농가에 공급하고 사육된 닭을 매입하는 사업자군.",
+		evidence_ordinals: [3, 4, 5],
+	},
+	{
+		key: "contract-farm",
+		name: "축산농가",
+		node_type: "sector",
+		description: "병아리와 사료를 받아 닭을 사육하고 사육수수료를 받는 농가.",
+		evidence_ordinals: [4, 5],
+	},
+	{
+		key: "chicken",
+		name: "닭",
+		node_type: "commodity",
+		description: "농가 사육 후 육계계열화업체가 사오는 산출물.",
+		evidence_ordinals: [4, 5],
+	},
+	{
+		key: "chicken-franchise",
+		name: "치킨프랜차이즈",
+		node_type: "sector",
+		description: "튀김유의 대량 구매처.",
+		evidence_ordinals: [1, 5],
+	},
+];
+
+export const sampleEdgeCandidates: EdgeCandidatePayload[] = [
+	{
+		source_key: "soybean",
+		target_key: "crushing",
+		edge_type: "uses",
+		description: "원료 대두를 수입해 국내에서 착유한다.",
+		evidence_ordinals: [1, 2],
+	},
+	{
+		source_key: "crude-oil",
+		target_key: "port-terminal",
+		edge_type: "flows_to",
+		description:
+			"식물성 원유는 탱크선으로 운반되어 항만 탱크터미널로 옮겨진다.",
+		evidence_ordinals: [1],
+	},
+	{
+		source_key: "port-terminal",
+		target_key: "refining",
+		edge_type: "flows_to",
+		description: "정제업체는 필요한 만큼 정제공장으로 가져와 정제한다.",
+		evidence_ordinals: [1],
+	},
+	{
+		source_key: "crushing",
+		target_key: "crude-oil",
+		edge_type: "produces",
+		description: "착유 공정은 기름을 산출한다.",
+		evidence_ordinals: [2],
+	},
+	{
+		source_key: "crushing",
+		target_key: "soybean-meal",
+		edge_type: "produces",
+		description: "착유 공정은 대두박을 산출한다.",
+		evidence_ordinals: [2],
+	},
+	{
+		source_key: "refining",
+		target_key: "frying-oil",
+		edge_type: "produces",
+		description: "정제 공정은 판매 가능한 식용유와 튀김유를 만든다.",
+		evidence_ordinals: [1, 5],
+	},
+	{
+		source_key: "frying-oil",
+		target_key: "chicken-franchise",
+		edge_type: "supplies_to",
+		description: "튀김유는 치킨프랜차이즈에 B2B로 대량 판매된다.",
+		evidence_ordinals: [1, 5],
+	},
+	{
+		source_key: "soybean-meal",
+		target_key: "feed-mixing",
+		edge_type: "uses",
+		description: "대두박은 배합사료 제조의 주요 투입물이다.",
+		evidence_ordinals: [3, 5],
+	},
+	{
+		source_key: "feed-mixing",
+		target_key: "compound-feed",
+		edge_type: "produces",
+		description: "배합사료회사는 대두박과 여러 재료로 사료를 만든다.",
+		evidence_ordinals: [3, 5],
+	},
+	{
+		source_key: "compound-feed",
+		target_key: "broiler-integrator",
+		edge_type: "supplies_to",
+		description: "배합사료는 육계계열화업체에 판매된다.",
+		evidence_ordinals: [3, 5],
+	},
+	{
+		source_key: "broiler-integrator",
+		target_key: "contract-farm",
+		edge_type: "supplies_to",
+		description: "육계계열화업체는 사료와 병아리를 농가에 제공한다.",
+		evidence_ordinals: [4, 5],
+	},
+	{
+		source_key: "contract-farm",
+		target_key: "chicken",
+		edge_type: "produces",
+		description: "농가는 병아리와 사료를 받아 닭을 사육한다.",
+		evidence_ordinals: [4, 5],
+	},
+	{
+		source_key: "chicken",
+		target_key: "broiler-integrator",
+		edge_type: "flows_to",
+		description: "사육된 닭은 육계계열화업체가 다시 사온다.",
+		evidence_ordinals: [4, 5],
+	},
+];
+
+export const sampleCompanyRoleCandidates: CompanyRoleCandidatePayload[] = [
+	{
+		company_name: "CJ제일제당",
+		is_listed: true,
+		ticker: null,
+		node_key: "crushing",
+		role: "착유 수행",
+		evidence_ordinal: 1,
+	},
+	{
+		company_name: "CJ제일제당",
+		is_listed: true,
+		ticker: null,
+		node_key: "refining",
+		role: "정제 수행",
+		evidence_ordinal: 1,
+	},
+	{
+		company_name: "사조그룹",
+		is_listed: true,
+		ticker: null,
+		node_key: "crushing",
+		role: "착유 수행",
+		evidence_ordinal: 1,
+	},
+	{
+		company_name: "사조그룹",
+		is_listed: true,
+		ticker: null,
+		node_key: "refining",
+		role: "정제 수행",
+		evidence_ordinal: 1,
+	},
+	{
+		company_name: "오뚜기",
+		is_listed: true,
+		ticker: null,
+		node_key: "refining",
+		role: "식용유 브랜드/정제 유통",
+		evidence_ordinal: 1,
+	},
+	{
+		company_name: "현대오일터미널",
+		is_listed: false,
+		ticker: null,
+		node_key: "port-terminal",
+		role: "제3자 탱크터미널 운영",
+		evidence_ordinal: 1,
+	},
+	{
+		company_name: "SY탱크터미널",
+		is_listed: false,
+		ticker: null,
+		node_key: "port-terminal",
+		role: "제3자 탱크터미널 운영",
+		evidence_ordinal: 1,
+	},
+	{
+		company_name: "천하제일사료",
+		is_listed: false,
+		ticker: null,
+		node_key: "feed-mixing",
+		role: "배합사료 제조",
+		evidence_ordinal: 3,
+	},
+	{
+		company_name: "우성사료",
+		is_listed: true,
+		ticker: null,
+		node_key: "feed-mixing",
+		role: "배합사료 제조",
+		evidence_ordinal: 3,
+	},
+	{
+		company_name: "대주산업",
+		is_listed: true,
+		ticker: null,
+		node_key: "feed-mixing",
+		role: "배합사료 제조",
+		evidence_ordinal: 3,
+	},
+	{
+		company_name: "하림",
+		is_listed: true,
+		ticker: null,
+		node_key: "broiler-integrator",
+		role: "육계계열화",
+		evidence_ordinal: 3,
+	},
+	{
+		company_name: "마니커",
+		is_listed: true,
+		ticker: null,
+		node_key: "broiler-integrator",
+		role: "육계계열화",
+		evidence_ordinal: 3,
+	},
+];

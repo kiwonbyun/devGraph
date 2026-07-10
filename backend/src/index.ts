@@ -1,16 +1,21 @@
 import "dotenv/config";
 import express from "express";
-import { articlesRouter } from "./articles/routes";
 import { migrate, pool } from "./db";
+import { extractionsRouter } from "./extractions/routes";
+import { industryMapRouter } from "./industryMap/routes";
 import { ingest } from "./ingest";
+import { researchNotesRouter } from "./researchNotes/routes";
 
 const app = express();
+app.use(express.json());
 
 app.get("/healthz", (_req, res) => {
 	return res.json({ status: "ok" });
 });
 
-app.use("/api/articles", articlesRouter);
+app.use("/api/research-notes", researchNotesRouter);
+app.use("/api/industry-map", industryMapRouter);
+app.use("/api", extractionsRouter);
 
 async function main() {
 	const result = await pool.query("SELECT version()");

@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { basename, extname, join } from "node:path";
 import matter from "gray-matter";
-import { upsertArticle } from "./articles/repo";
+import { upsertResearchNote } from "./researchNotes/repo";
 
 export async function ingest(contentDir: string): Promise<number> {
 	const files = readdirSync(contentDir).filter((f) => f.endsWith(".md"));
@@ -14,16 +14,13 @@ export async function ingest(contentDir: string): Promise<number> {
 		const name = basename(file, extname(file)); // 파일 이름에서 확장자를 제거한 이름
 		const slug = data?.slug ?? slugify(name);
 		const title = data?.title ?? firstHeading(content) ?? name;
-		const dateRaw = data?.date ? new Date(data.date) : null;
-
 		const input = {
 			slug,
 			title,
 			body: content,
 			sourcePath: file,
-			publishedAt: dateRaw && !Number.isNaN(dateRaw.getTime()) ? dateRaw : null,
 		};
-		await upsertArticle(input);
+		await upsertResearchNote(input);
 		count++;
 	}
 
