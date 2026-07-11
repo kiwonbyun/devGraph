@@ -22,6 +22,7 @@ import {
 	industryMapQueryOptions,
 	researchNotesQueryOptions,
 } from "../lib/queries";
+import { useDocumentMeta } from "../lib/useDocumentMeta";
 
 const NODE_TYPES: IndustryNode["node_type"][] = [
 	"commodity",
@@ -46,6 +47,10 @@ interface Filters {
 
 export function Home() {
 	const industryMap = useQuery(industryMapQueryOptions);
+	useDocumentMeta(
+		"전체 산업지도",
+		"관리자가 검수한 한국 산업 밸류체인을 근거 문단 단위로 구조화한 지식 그래프.",
+	);
 
 	if (industryMap.isPending) {
 		return <p className="font-mono text-slate-400 text-sm">불러오는 중…</p>;

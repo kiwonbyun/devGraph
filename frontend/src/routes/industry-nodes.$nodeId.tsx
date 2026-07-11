@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "@tanstack/react-router";
 import { nodeTypeLabel } from "../lib/industryLabels";
 import { industryMapQueryOptions } from "../lib/queries";
+import { useDocumentMeta } from "../lib/useDocumentMeta";
 
 export function IndustryNodeDetail() {
 	const { nodeId } = useParams({ from: "/industry-nodes/$nodeId" });
@@ -52,6 +53,7 @@ function NodeDetailContent({
 	);
 	const aliases = map.aliases.filter((item) => item.node_id === node.id);
 	const nodeById = new Map(map.nodes.map((item) => [item.id, item]));
+	useDocumentMeta(node.canonical_name, node.description ?? undefined);
 
 	return (
 		<div className="mx-auto max-w-3xl">

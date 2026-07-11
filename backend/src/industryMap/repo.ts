@@ -47,6 +47,7 @@ export async function getIndustryMap(): Promise<IndustryMap> {
             FROM industry_node_evidence ine
             JOIN evidence e ON e.id = ine.evidence_id
             JOIN research_notes n ON n.id = e.research_note_id
+            WHERE n.status = 'published'
             ORDER BY ine.industry_node_id ASC, e.ordinal ASC`),
 		pool.query(`
             SELECT
@@ -59,6 +60,7 @@ export async function getIndustryMap(): Promise<IndustryMap> {
             FROM industry_edge_evidence iee
             JOIN evidence e ON e.id = iee.evidence_id
             JOIN research_notes n ON n.id = e.research_note_id
+            WHERE n.status = 'published'
             ORDER BY iee.industry_edge_id ASC, e.ordinal ASC`),
 		pool.query(`
             SELECT id, source_node_id, target_node_id, relation_type

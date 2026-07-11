@@ -4,6 +4,7 @@ import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { isNotFoundError } from "../lib/api";
 import { evidenceQueryOptions, researchNoteQueryOptions } from "../lib/queries";
+import { useDocumentMeta } from "../lib/useDocumentMeta";
 
 function BackLink() {
 	return (
@@ -22,6 +23,7 @@ export function ResearchNoteDetail() {
 		researchNoteQueryOptions(slug),
 	);
 	const { data: evidence } = useQuery(evidenceQueryOptions(slug));
+	useDocumentMeta(data?.title ?? "리서치 글", evidence?.[0]?.text);
 
 	if (isPending) {
 		return <p className="font-mono text-slate-400 text-sm">불러오는 중…</p>;
