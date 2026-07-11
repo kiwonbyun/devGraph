@@ -44,6 +44,41 @@ export const evidenceQueryOptions = (slug: string) =>
 		retry: (failureCount, error) => !isNotFoundError(error) && failureCount < 2,
 	});
 
+// --- 관리자 전용 (모든 상태 포함) ---
+export const adminResearchNotesQueryOptions = queryOptions({
+	queryKey: ["admin", "research-notes"],
+	queryFn: async (): Promise<ResearchNoteListItem[]> => {
+		const { data } = await api.get<ResearchNoteListItem[]>(
+			"/admin/research-notes",
+		);
+		return data;
+	},
+});
+
+export const adminResearchNoteQueryOptions = (slug: string) =>
+	queryOptions({
+		queryKey: ["admin", "research-notes", slug],
+		queryFn: async (): Promise<ResearchNote> => {
+			const { data } = await api.get<ResearchNote>(
+				`/admin/research-notes/${encodeURIComponent(slug)}`,
+			);
+			return data;
+		},
+		retry: (failureCount, error) => !isNotFoundError(error) && failureCount < 2,
+	});
+
+export const adminEvidenceQueryOptions = (slug: string) =>
+	queryOptions({
+		queryKey: ["admin", "research-notes", slug, "evidence"],
+		queryFn: async (): Promise<Evidence[]> => {
+			const { data } = await api.get<Evidence[]>(
+				`/admin/research-notes/${encodeURIComponent(slug)}/evidence`,
+			);
+			return data;
+		},
+		retry: (failureCount, error) => !isNotFoundError(error) && failureCount < 2,
+	});
+
 export const industryMapQueryOptions = queryOptions({
 	queryKey: ["industry-map"],
 	queryFn: async (): Promise<IndustryMap> => {
@@ -54,10 +89,10 @@ export const industryMapQueryOptions = queryOptions({
 
 export const extractionRunsQueryOptions = (slug: string) =>
 	queryOptions({
-		queryKey: ["research-notes", slug, "extraction-runs"],
+		queryKey: ["admin", "extraction-runs", "note", slug],
 		queryFn: async (): Promise<ExtractionRunListItem[]> => {
 			const { data } = await api.get<ExtractionRunListItem[]>(
-				`/research-notes/${encodeURIComponent(slug)}/extraction-runs`,
+				`/admin/research-notes/${encodeURIComponent(slug)}/extraction-runs`,
 			);
 			return data;
 		},
@@ -66,10 +101,10 @@ export const extractionRunsQueryOptions = (slug: string) =>
 
 export const extractionRunQueryOptions = (runId: string) =>
 	queryOptions({
-		queryKey: ["extraction-runs", runId],
+		queryKey: ["admin", "extraction-runs", runId],
 		queryFn: async (): Promise<ExtractionRunDetail> => {
 			const { data } = await api.get<ExtractionRunDetail>(
-				`/extraction-runs/${encodeURIComponent(runId)}`,
+				`/admin/extraction-runs/${encodeURIComponent(runId)}`,
 			);
 			return data;
 		},

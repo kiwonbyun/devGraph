@@ -1,6 +1,9 @@
+export type ResearchNoteStatus = "draft" | "published";
+
 export interface ResearchNoteListItem {
 	slug: string;
 	title: string;
+	status: ResearchNoteStatus;
 	updated_at: string;
 }
 
@@ -9,6 +12,7 @@ export interface ResearchNote {
 	slug: string;
 	title: string;
 	body: string;
+	status: ResearchNoteStatus;
 	source_path: string;
 	created_at: string;
 	updated_at: string;
@@ -41,6 +45,12 @@ export interface IndustryNode {
 	canonical_name: string;
 	node_type: IndustryNodeType;
 	description: string | null;
+}
+
+export interface IndustryNodeSearchResult {
+	id: string;
+	canonical_name: string;
+	node_type: IndustryNodeType;
 }
 
 export interface IndustryEdge {
@@ -79,17 +89,46 @@ export interface IndustryEdgeEvidence {
 	text: string;
 }
 
+export interface IndustryNodeRelation {
+	id: string;
+	source_node_id: string;
+	target_node_id: string;
+	relation_type: NodeRelationType;
+}
+
+export interface NodeAlias {
+	id: string;
+	node_id: string;
+	alias: string;
+}
+
+export interface IndustryCluster {
+	id: string;
+	name: string;
+	description: string | null;
+	node_ids: string[];
+}
+
 export interface IndustryMap {
 	nodes: IndustryNode[];
 	edges: IndustryEdge[];
 	company_roles: CompanyRole[];
 	node_evidence: IndustryNodeEvidence[];
 	edge_evidence: IndustryEdgeEvidence[];
+	relations: IndustryNodeRelation[];
+	aliases: NodeAlias[];
+	clusters: IndustryCluster[];
 }
 
 export type ExtractionRunStatus = "pending" | "approved" | "rejected";
 export type ExtractionCandidateStatus = "pending" | "approved" | "rejected";
-export type ExtractionCandidateType = "node" | "edge" | "company_role";
+export type ExtractionCandidateType =
+	| "node"
+	| "edge"
+	| "company_role"
+	| "node_relation"
+	| "cluster"
+	| "alias";
 
 export interface ExtractionRunListItem {
 	id: string;
@@ -99,11 +138,19 @@ export interface ExtractionRunListItem {
 	updated_at: string;
 }
 
+export type ExtractionDiffKind =
+	| "add"
+	| "modify"
+	| "remove"
+	| "unchanged"
+	| null;
+
 export interface ExtractionCandidate {
 	id: string;
 	extraction_run_id: string;
 	candidate_type: ExtractionCandidateType;
 	status: ExtractionCandidateStatus;
+	diff_kind: ExtractionDiffKind;
 	payload: unknown;
 	created_at: string;
 	updated_at: string;

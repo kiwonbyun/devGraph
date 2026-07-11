@@ -1,29 +1,11 @@
-import type { IndustryEdgeType, IndustryNodeType } from "@devgraph/shared";
-
-export interface NodeCandidatePayload {
-	key: string;
-	name: string;
-	node_type: IndustryNodeType;
-	description: string;
-	evidence_ordinals: number[];
-}
-
-export interface EdgeCandidatePayload {
-	source_key: string;
-	target_key: string;
-	edge_type: IndustryEdgeType;
-	description: string;
-	evidence_ordinals: number[];
-}
-
-export interface CompanyRoleCandidatePayload {
-	company_name: string;
-	is_listed: boolean;
-	ticker: string | null;
-	node_key: string;
-	role: string;
-	evidence_ordinal: number;
-}
+import type {
+	AliasCandidatePayload,
+	ClusterCandidatePayload,
+	CompanyRoleCandidatePayload,
+	EdgeCandidatePayload,
+	NodeCandidatePayload,
+	NodeRelationCandidatePayload,
+} from "./candidateTypes";
 
 export const sampleNodeCandidates: NodeCandidatePayload[] = [
 	{
@@ -124,8 +106,8 @@ export const sampleNodeCandidates: NodeCandidatePayload[] = [
 
 export const sampleEdgeCandidates: EdgeCandidatePayload[] = [
 	{
-		source_key: "soybean",
-		target_key: "crushing",
+		source_key: "crushing",
+		target_key: "soybean",
 		edge_type: "uses",
 		description: "원료 대두를 수입해 국내에서 착유한다.",
 		evidence_ordinals: [1, 2],
@@ -169,13 +151,13 @@ export const sampleEdgeCandidates: EdgeCandidatePayload[] = [
 	{
 		source_key: "frying-oil",
 		target_key: "chicken-franchise",
-		edge_type: "supplies_to",
+		edge_type: "flows_to",
 		description: "튀김유는 치킨프랜차이즈에 B2B로 대량 판매된다.",
 		evidence_ordinals: [1, 5],
 	},
 	{
-		source_key: "soybean-meal",
-		target_key: "feed-mixing",
+		source_key: "feed-mixing",
+		target_key: "soybean-meal",
 		edge_type: "uses",
 		description: "대두박은 배합사료 제조의 주요 투입물이다.",
 		evidence_ordinals: [3, 5],
@@ -190,7 +172,7 @@ export const sampleEdgeCandidates: EdgeCandidatePayload[] = [
 	{
 		source_key: "compound-feed",
 		target_key: "broiler-integrator",
-		edge_type: "supplies_to",
+		edge_type: "flows_to",
 		description: "배합사료는 육계계열화업체에 판매된다.",
 		evidence_ordinals: [3, 5],
 	},
@@ -313,5 +295,41 @@ export const sampleCompanyRoleCandidates: CompanyRoleCandidatePayload[] = [
 		node_key: "broiler-integrator",
 		role: "육계계열화",
 		evidence_ordinal: 3,
+	},
+];
+
+export const sampleNodeRelationCandidates: NodeRelationCandidatePayload[] = [
+	{
+		source_key: "soybean-meal",
+		target_key: "compound-feed",
+		relation_type: "part_of",
+	},
+];
+
+export const sampleAliasCandidates: AliasCandidatePayload[] = [
+	{ node_key: "crude-oil", alias: "crude vegetable oil" },
+	{ node_key: "soybean-meal", alias: "SBM" },
+];
+
+export const sampleClusterCandidates: ClusterCandidatePayload[] = [
+	{
+		name: "치킨 밸류체인",
+		description:
+			"대두/식물성 원유 수입부터 식용유·대두박·배합사료·육계까지의 흐름",
+		node_keys: [
+			"soybean",
+			"crude-oil",
+			"port-terminal",
+			"crushing",
+			"refining",
+			"frying-oil",
+			"soybean-meal",
+			"feed-mixing",
+			"compound-feed",
+			"broiler-integrator",
+			"contract-farm",
+			"chicken",
+			"chicken-franchise",
+		],
 	},
 ];

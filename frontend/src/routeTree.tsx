@@ -1,5 +1,9 @@
 import { createRootRoute, createRoute } from "@tanstack/react-router";
 import { RootLayout } from "./routes/__root";
+import { AdminLayout } from "./routes/admin";
+import { AdminDashboard } from "./routes/admin.index";
+import { EditResearchNote } from "./routes/admin.research-notes.$slug";
+import { NewResearchNote } from "./routes/admin.research-notes.new";
 import { ExtractionRunReview } from "./routes/extraction-runs.$runId";
 import { Home } from "./routes/index";
 import { IndustryNodeDetail } from "./routes/industry-nodes.$nodeId";
@@ -25,15 +29,44 @@ const industryNodeRoute = createRoute({
 	component: IndustryNodeDetail,
 });
 
-const extractionRunRoute = createRoute({
-	getParentRoute: () => rootRoute,
-	path: "/extraction-runs/$runId",
+const adminExtractionRunRoute = createRoute({
+	getParentRoute: () => adminRoute,
+	path: "extraction-runs/$runId",
 	component: ExtractionRunReview,
+});
+
+const adminRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/admin",
+	component: AdminLayout,
+});
+
+const adminIndexRoute = createRoute({
+	getParentRoute: () => adminRoute,
+	path: "/",
+	component: AdminDashboard,
+});
+
+const adminNewNoteRoute = createRoute({
+	getParentRoute: () => adminRoute,
+	path: "research-notes/new",
+	component: NewResearchNote,
+});
+
+const adminEditNoteRoute = createRoute({
+	getParentRoute: () => adminRoute,
+	path: "research-notes/$slug",
+	component: EditResearchNote,
 });
 
 export const routeTree = rootRoute.addChildren([
 	indexRoute,
 	researchNoteRoute,
 	industryNodeRoute,
-	extractionRunRoute,
+	adminRoute.addChildren([
+		adminIndexRoute,
+		adminNewNoteRoute,
+		adminEditNoteRoute,
+		adminExtractionRunRoute,
+	]),
 ]);
