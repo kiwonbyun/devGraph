@@ -355,6 +355,14 @@ export async function approveExtractionRun(runId: string): Promise<void> {
 					payload.existing_node_id,
 					researchNoteId,
 				);
+				await recordRevision(client, {
+					entityType: "node",
+					entityId: payload.existing_node_id ?? null,
+					action: "deactivate",
+					runId,
+					researchNoteId,
+					detail: { name: payload.name },
+				});
 				await approveCandidate(client, candidate.id);
 				continue;
 			}
@@ -370,6 +378,19 @@ export async function approveExtractionRun(runId: string): Promise<void> {
 					"UPDATE industry_nodes SET is_active = TRUE WHERE id = $1 AND is_active = FALSE",
 					[nodeId],
 				);
+			}
+			{
+				const action = diffToAction(candidate.diff_kind);
+				if (action) {
+					await recordRevision(client, {
+						entityType: "node",
+						entityId: nodeId,
+						action,
+						runId,
+						researchNoteId,
+						detail: { name: payload.name },
+					});
+				}
 			}
 			await linkEvidence(
 				client,
@@ -392,6 +413,14 @@ export async function approveExtractionRun(runId: string): Promise<void> {
 					payload.existing_edge_id,
 					researchNoteId,
 				);
+				await recordRevision(client, {
+					entityType: "edge",
+					entityId: payload.existing_edge_id ?? null,
+					action: "deactivate",
+					runId,
+					researchNoteId,
+					detail: { description: payload.description },
+				});
 				await approveCandidate(client, candidate.id);
 				continue;
 			}
@@ -418,6 +447,19 @@ export async function approveExtractionRun(runId: string): Promise<void> {
 					[edgeId],
 				);
 			}
+			{
+				const action = diffToAction(candidate.diff_kind);
+				if (action) {
+					await recordRevision(client, {
+						entityType: "edge",
+						entityId: edgeId,
+						action,
+						runId,
+						researchNoteId,
+						detail: { edge_type: payload.edge_type },
+					});
+				}
+			}
 			await linkEvidence(
 				client,
 				"industry_edge_evidence",
@@ -438,6 +480,14 @@ export async function approveExtractionRun(runId: string): Promise<void> {
 					await client.query("DELETE FROM company_roles WHERE id = $1", [
 						payload.existing_company_role_id,
 					]);
+					await recordRevision(client, {
+						entityType: "company_role",
+						entityId: payload.existing_company_role_id,
+						action: "delete",
+						runId,
+						researchNoteId,
+						detail: { company_name: payload.company_name, role: payload.role },
+					});
 				}
 				await approveCandidate(client, candidate.id);
 				continue;
@@ -459,6 +509,16 @@ export async function approveExtractionRun(runId: string): Promise<void> {
 					evidenceByOrdinal.get(payload.evidence_ordinal) ?? null,
 				],
 			);
+			if (diffToAction(candidate.diff_kind)) {
+				await recordRevision(client, {
+					entityType: "company_role",
+					entityId: null,
+					action: "create",
+					runId,
+					researchNoteId,
+					detail: { company_name: payload.company_name, role: payload.role },
+				});
+			}
 			await approveCandidate(client, candidate.id);
 		}
 
@@ -473,6 +533,14 @@ export async function approveExtractionRun(runId: string): Promise<void> {
                  ON CONFLICT (source_node_id, target_node_id, relation_type) DO NOTHING`,
 				[sourceNodeId, targetNodeId, payload.relation_type],
 			);
+			await recordRevision(client, {
+				entityType: "node_relation",
+				entityId: null,
+				action: "create",
+				runId,
+				researchNoteId,
+				detail: { relation_type: payload.relation_type },
+			});
 			await approveCandidate(client, candidate.id);
 		}
 
@@ -486,6 +554,14 @@ export async function approveExtractionRun(runId: string): Promise<void> {
                  ON CONFLICT (node_id, alias) DO NOTHING`,
 				[nodeId, payload.alias],
 			);
+			await recordRevision(client, {
+				entityType: "alias",
+				entityId: nodeId,
+				action: "create",
+				runId,
+				researchNoteId,
+				detail: { alias: payload.alias },
+			});
 			await approveCandidate(client, candidate.id);
 		}
 
@@ -502,6 +578,14 @@ export async function approveExtractionRun(runId: string): Promise<void> {
 					[clusterId, nodeId],
 				);
 			}
+			await recordRevision(client, {
+				entityType: "cluster",
+				entityId: clusterId,
+				action: "create",
+				runId,
+				researchNoteId,
+				detail: { name: payload.name },
+			});
 			await approveCandidate(client, candidate.id);
 		}
 
@@ -720,6 +804,38 @@ async function insertCandidatesWithDiff(
 			item.diffKind,
 		);
 	}
+}
+
+function diffToAction(diffKind: string | null): "create" | "update" | null {
+	if (diffKind === "modify") return "update";
+	if (diffKind === "unchanged") return null; // 변화 없음 → 기록 생략
+	return "create"; // 'add' 또는 null(첫 추출)
+}
+
+async function recordRevision(
+	client: Pick<typeof pool, "query">,
+	input: {
+		entityType: string;
+		entityId: string | null;
+		action: "create" | "update" | "deactivate" | "delete";
+		runId: string;
+		researchNoteId: string;
+		detail: unknown;
+	},
+): Promise<void> {
+	await client.query(
+		`INSERT INTO graph_revisions
+		   (entity_type, entity_id, action, research_note_id, extraction_run_id, detail)
+		 VALUES ($1, $2, $3, $4, $5, $6)`,
+		[
+			input.entityType,
+			input.entityId,
+			input.action,
+			input.researchNoteId,
+			input.runId,
+			JSON.stringify(input.detail),
+		],
+	);
 }
 
 async function approveCandidate(
