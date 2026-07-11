@@ -50,6 +50,7 @@ function NodeDetailContent({
 	const evidence = map.node_evidence.filter(
 		(item) => item.industry_node_id === node.id,
 	);
+	const aliases = map.aliases.filter((item) => item.node_id === node.id);
 	const nodeById = new Map(map.nodes.map((item) => [item.id, item]));
 
 	return (
@@ -64,6 +65,18 @@ function NodeDetailContent({
 				</h1>
 				{node.description ? (
 					<p className="mt-4 text-slate-600 leading-7">{node.description}</p>
+				) : null}
+				{aliases.length > 0 ? (
+					<p className="mt-3 flex flex-wrap gap-1.5">
+						{aliases.map((alias) => (
+							<span
+								key={alias.id}
+								className="rounded bg-slate-100 px-2 py-0.5 font-mono text-slate-500 text-xs"
+							>
+								{alias.alias}
+							</span>
+						))}
+					</p>
 				) : null}
 			</header>
 

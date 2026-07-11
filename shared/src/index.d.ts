@@ -89,17 +89,46 @@ export interface IndustryEdgeEvidence {
 	text: string;
 }
 
+export interface IndustryNodeRelation {
+	id: string;
+	source_node_id: string;
+	target_node_id: string;
+	relation_type: NodeRelationType;
+}
+
+export interface NodeAlias {
+	id: string;
+	node_id: string;
+	alias: string;
+}
+
+export interface IndustryCluster {
+	id: string;
+	name: string;
+	description: string | null;
+	node_ids: string[];
+}
+
 export interface IndustryMap {
 	nodes: IndustryNode[];
 	edges: IndustryEdge[];
 	company_roles: CompanyRole[];
 	node_evidence: IndustryNodeEvidence[];
 	edge_evidence: IndustryEdgeEvidence[];
+	relations: IndustryNodeRelation[];
+	aliases: NodeAlias[];
+	clusters: IndustryCluster[];
 }
 
 export type ExtractionRunStatus = "pending" | "approved" | "rejected";
 export type ExtractionCandidateStatus = "pending" | "approved" | "rejected";
-export type ExtractionCandidateType = "node" | "edge" | "company_role";
+export type ExtractionCandidateType =
+	| "node"
+	| "edge"
+	| "company_role"
+	| "node_relation"
+	| "cluster"
+	| "alias";
 
 export interface ExtractionRunListItem {
 	id: string;

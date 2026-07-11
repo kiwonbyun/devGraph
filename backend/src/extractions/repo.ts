@@ -6,10 +6,13 @@ import type {
 } from "@devgraph/shared";
 import { pool } from "../db";
 import type {
+	AliasCandidatePayload,
 	CandidateType,
+	ClusterCandidatePayload,
 	CompanyRoleCandidatePayload,
 	EdgeCandidatePayload,
 	NodeCandidatePayload,
+	NodeRelationCandidatePayload,
 } from "./candidateTypes";
 import { extractGraphCandidates, LlmNotConfiguredError } from "./llm";
 import {
@@ -340,6 +343,15 @@ export async function approveExtractionRun(runId: string): Promise<void> {
 	const companyRoleCandidates = pendingCandidates.filter(
 		(candidate) => candidate.candidate_type === "company_role",
 	);
+	const relationCandidates = pendingCandidates.filter(
+		(candidate) => candidate.candidate_type === "node_relation",
+	);
+	const aliasCandidates = pendingCandidates.filter(
+		(candidate) => candidate.candidate_type === "alias",
+	);
+	const clusterCandidates = pendingCandidates.filter(
+		(candidate) => candidate.candidate_type === "cluster",
+	);
 
 	const client = await pool.connect();
 	try {
@@ -404,6 +416,49 @@ export async function approveExtractionRun(runId: string): Promise<void> {
 					evidenceByOrdinal.get(payload.evidence_ordinal) ?? null,
 				],
 			);
+			await approveCandidate(client, candidate.id);
+		}
+
+		for (const candidate of relationCandidates) {
+			const payload = candidate.payload as NodeRelationCandidatePayload;
+			const sourceNodeId = nodeIds.get(payload.source_key);
+			const targetNodeId = nodeIds.get(payload.target_key);
+			if (!sourceNodeId || !targetNodeId) continue;
+			await client.query(
+				`INSERT INTO node_relations (source_node_id, target_node_id, relation_type)
+                 VALUES ($1, $2, $3)
+                 ON CONFLICT (source_node_id, target_node_id, relation_type) DO NOTHING`,
+				[sourceNodeId, targetNodeId, payload.relation_type],
+			);
+			await approveCandidate(client, candidate.id);
+		}
+
+		for (const candidate of aliasCandidates) {
+			const payload = candidate.payload as AliasCandidatePayload;
+			const nodeId = nodeIds.get(payload.node_key);
+			if (!nodeId) continue;
+			await client.query(
+				`INSERT INTO node_aliases (node_id, alias)
+                 VALUES ($1, $2)
+                 ON CONFLICT (node_id, alias) DO NOTHING`,
+				[nodeId, payload.alias],
+			);
+			await approveCandidate(client, candidate.id);
+		}
+
+		for (const candidate of clusterCandidates) {
+			const payload = candidate.payload as ClusterCandidatePayload;
+			const clusterId = await getOrCreateCluster(client, payload);
+			for (const nodeKey of payload.node_keys) {
+				const nodeId = nodeIds.get(nodeKey);
+				if (!nodeId) continue;
+				await client.query(
+					`INSERT INTO cluster_nodes (cluster_id, node_id)
+                     VALUES ($1, $2)
+                     ON CONFLICT DO NOTHING`,
+					[clusterId, nodeId],
+				);
+			}
 			await approveCandidate(client, candidate.id);
 		}
 
@@ -507,6 +562,22 @@ async function getOrCreateCompany(
 		throw new Error(`Failed to approve company ${payload.company_name}`);
 	}
 	return existingId;
+}
+
+async function getOrCreateCluster(
+	client: Pick<typeof pool, "query">,
+	payload: ClusterCandidatePayload,
+): Promise<string> {
+	const insert = await client.query<{ id: string }>(
+		`INSERT INTO clusters (name, description, updated_at)
+		 VALUES ($1, $2, now())
+		 ON CONFLICT (name) DO UPDATE SET description = EXCLUDED.description, updated_at = now()
+		 RETURNING id`,
+		[payload.name, payload.description],
+	);
+	const id = insert.rows[0]?.id;
+	if (!id) throw new Error(`Failed to approve cluster ${payload.name}`);
+	return id;
 }
 
 async function insertCandidate(
