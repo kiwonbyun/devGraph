@@ -1,5 +1,6 @@
 import type {
 	ExtractionCandidate,
+	ExtractionCandidateStatus,
 	ExtractionRunDetail,
 	ExtractionRunListItem,
 } from "@devgraph/shared";
@@ -14,6 +15,10 @@ import {
 } from "./sampleData";
 
 type CandidateType = "node" | "edge" | "company_role";
+type ReviewableCandidateStatus = Extract<
+	ExtractionCandidateStatus,
+	"pending" | "rejected"
+>;
 
 export async function createSampleExtractionRun(
 	slug: string,
@@ -113,9 +118,53 @@ export async function getExtractionRunDetail(
 	return { ...row, candidates: candidates.rows };
 }
 
+export async function updateExtractionCandidate(
+	candidateId: string,
+	input: {
+		status?: ReviewableCandidateStatus;
+		payload?: unknown;
+	},
+): Promise<ExtractionCandidate | null> {
+	const current = await pool.query<{
+		run_status: string;
+	}>(
+		`
+		SELECT r.status AS run_status
+		FROM extraction_candidates c
+		JOIN extraction_runs r ON r.id = c.extraction_run_id
+		WHERE c.id = $1`,
+		[candidateId],
+	);
+	const row = current.rows[0];
+	if (!row) return null;
+	if (row.run_status !== "pending") {
+		throw new Error("Cannot edit candidates after the extraction run is closed");
+	}
+
+	const result = await pool.query<ExtractionCandidate>(
+		`
+		UPDATE extraction_candidates
+		SET
+			status = COALESCE($2::text, status),
+			payload = COALESCE($3::jsonb, payload),
+			updated_at = now()
+		WHERE id = $1
+		RETURNING id, extraction_run_id, candidate_type, status, payload, created_at, updated_at`,
+		[
+			candidateId,
+			input.status ?? null,
+			input.payload === undefined ? null : JSON.stringify(input.payload),
+		],
+	);
+	return result.rows[0] ?? null;
+}
+
 export async function approveExtractionRun(runId: string): Promise<void> {
 	const detail = await getExtractionRunDetail(runId);
 	if (!detail) throw new Error(`Extraction run not found: ${runId}`);
+	if (detail.status !== "pending") {
+		throw new Error(`Extraction run is already ${detail.status}`);
+	}
 
 	const note = await pool.query<{ id: string }>(
 		"SELECT id FROM research_notes WHERE slug = $1",
@@ -134,13 +183,16 @@ export async function approveExtractionRun(runId: string): Promise<void> {
 		evidence.rows.map((row) => [row.ordinal, row.id]),
 	);
 	const nodeIds = new Map<string, string>();
-	const nodeCandidates = detail.candidates.filter(
+	const pendingCandidates = detail.candidates.filter(
+		(candidate) => candidate.status === "pending",
+	);
+	const nodeCandidates = pendingCandidates.filter(
 		(candidate) => candidate.candidate_type === "node",
 	);
-	const edgeCandidates = detail.candidates.filter(
+	const edgeCandidates = pendingCandidates.filter(
 		(candidate) => candidate.candidate_type === "edge",
 	);
-	const companyRoleCandidates = detail.candidates.filter(
+	const companyRoleCandidates = pendingCandidates.filter(
 		(candidate) => candidate.candidate_type === "company_role",
 	);
 
@@ -150,17 +202,7 @@ export async function approveExtractionRun(runId: string): Promise<void> {
 
 		for (const candidate of nodeCandidates) {
 			const payload = candidate.payload as NodeCandidatePayload;
-			const result = await client.query<{ id: string }>(
-				`INSERT INTO industry_nodes (canonical_name, node_type, description, updated_at)
-                 VALUES ($1, $2, $3, now())
-                 ON CONFLICT (canonical_name, node_type) DO UPDATE SET
-                    description = EXCLUDED.description,
-                    updated_at = now()
-                 RETURNING id`,
-				[payload.name, payload.node_type, payload.description],
-			);
-			const nodeId = result.rows[0]?.id;
-			if (!nodeId) throw new Error(`Failed to approve node ${payload.name}`);
+			const nodeId = await getOrCreateIndustryNode(client, payload);
 			nodeIds.set(payload.key, nodeId);
 			await linkEvidence(
 				client,
@@ -182,17 +224,12 @@ export async function approveExtractionRun(runId: string): Promise<void> {
 					`Missing node for edge ${payload.source_key} -> ${payload.target_key}`,
 				);
 			}
-			const result = await client.query<{ id: string }>(
-				`INSERT INTO industry_edges (source_node_id, target_node_id, edge_type, description, updated_at)
-                 VALUES ($1, $2, $3, $4, now())
-                 ON CONFLICT (source_node_id, target_node_id, edge_type) DO UPDATE SET
-                    description = EXCLUDED.description,
-                    updated_at = now()
-                 RETURNING id`,
-				[sourceNodeId, targetNodeId, payload.edge_type, payload.description],
+			const edgeId = await getOrCreateIndustryEdge(
+				client,
+				sourceNodeId,
+				targetNodeId,
+				payload,
 			);
-			const edgeId = result.rows[0]?.id;
-			if (!edgeId) throw new Error("Failed to approve edge");
 			await linkEvidence(
 				client,
 				"industry_edge_evidence",
@@ -206,17 +243,7 @@ export async function approveExtractionRun(runId: string): Promise<void> {
 
 		for (const candidate of companyRoleCandidates) {
 			const payload = candidate.payload as CompanyRoleCandidatePayload;
-			const company = await client.query<{ id: string }>(
-				`INSERT INTO companies (name, is_listed, ticker, updated_at)
-                 VALUES ($1, $2, $3, now())
-                 ON CONFLICT (name) DO UPDATE SET
-                    is_listed = EXCLUDED.is_listed,
-                    ticker = EXCLUDED.ticker,
-                    updated_at = now()
-                 RETURNING id`,
-				[payload.company_name, payload.is_listed, payload.ticker],
-			);
-			const companyId = company.rows[0]?.id;
+			const companyId = await getOrCreateCompany(client, payload);
 			const nodeId = nodeIds.get(payload.node_key);
 			if (!companyId || !nodeId) {
 				throw new Error(`Failed to approve company ${payload.company_name}`);
@@ -224,9 +251,7 @@ export async function approveExtractionRun(runId: string): Promise<void> {
 			await client.query(
 				`INSERT INTO company_roles (company_id, industry_node_id, role, evidence_id, updated_at)
                  VALUES ($1, $2, $3, $4, now())
-                 ON CONFLICT (company_id, industry_node_id, role) DO UPDATE SET
-                    evidence_id = EXCLUDED.evidence_id,
-                    updated_at = now()`,
+                 ON CONFLICT (company_id, industry_node_id, role) DO NOTHING`,
 				[
 					companyId,
 					nodeId,
@@ -248,6 +273,85 @@ export async function approveExtractionRun(runId: string): Promise<void> {
 	} finally {
 		client.release();
 	}
+}
+
+async function getOrCreateIndustryNode(
+	client: Pick<typeof pool, "query">,
+	payload: NodeCandidatePayload,
+): Promise<string> {
+	const insert = await client.query<{ id: string }>(
+		`INSERT INTO industry_nodes (canonical_name, node_type, description, updated_at)
+		 VALUES ($1, $2, $3, now())
+		 ON CONFLICT (canonical_name, node_type) DO NOTHING
+		 RETURNING id`,
+		[payload.name, payload.node_type, payload.description],
+	);
+	const insertedId = insert.rows[0]?.id;
+	if (insertedId) return insertedId;
+
+	const existing = await client.query<{ id: string }>(
+		`SELECT id
+		 FROM industry_nodes
+		 WHERE canonical_name = $1 AND node_type = $2`,
+		[payload.name, payload.node_type],
+	);
+	const existingId = existing.rows[0]?.id;
+	if (!existingId) throw new Error(`Failed to approve node ${payload.name}`);
+	return existingId;
+}
+
+async function getOrCreateIndustryEdge(
+	client: Pick<typeof pool, "query">,
+	sourceNodeId: string,
+	targetNodeId: string,
+	payload: EdgeCandidatePayload,
+): Promise<string> {
+	const insert = await client.query<{ id: string }>(
+		`INSERT INTO industry_edges (source_node_id, target_node_id, edge_type, description, updated_at)
+		 VALUES ($1, $2, $3, $4, now())
+		 ON CONFLICT (source_node_id, target_node_id, edge_type) DO NOTHING
+		 RETURNING id`,
+		[sourceNodeId, targetNodeId, payload.edge_type, payload.description],
+	);
+	const insertedId = insert.rows[0]?.id;
+	if (insertedId) return insertedId;
+
+	const existing = await client.query<{ id: string }>(
+		`SELECT id
+		 FROM industry_edges
+		 WHERE source_node_id = $1 AND target_node_id = $2 AND edge_type = $3`,
+		[sourceNodeId, targetNodeId, payload.edge_type],
+	);
+	const existingId = existing.rows[0]?.id;
+	if (!existingId) throw new Error("Failed to approve edge");
+	return existingId;
+}
+
+async function getOrCreateCompany(
+	client: Pick<typeof pool, "query">,
+	payload: CompanyRoleCandidatePayload,
+): Promise<string> {
+	const insert = await client.query<{ id: string }>(
+		`INSERT INTO companies (name, is_listed, ticker, updated_at)
+		 VALUES ($1, $2, $3, now())
+		 ON CONFLICT (name) DO NOTHING
+		 RETURNING id`,
+		[payload.company_name, payload.is_listed, payload.ticker],
+	);
+	const insertedId = insert.rows[0]?.id;
+	if (insertedId) return insertedId;
+
+	const existing = await client.query<{ id: string }>(
+		`SELECT id
+		 FROM companies
+		 WHERE name = $1`,
+		[payload.company_name],
+	);
+	const existingId = existing.rows[0]?.id;
+	if (!existingId) {
+		throw new Error(`Failed to approve company ${payload.company_name}`);
+	}
+	return existingId;
 }
 
 async function insertCandidate(

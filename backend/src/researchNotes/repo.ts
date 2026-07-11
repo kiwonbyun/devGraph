@@ -1,10 +1,10 @@
-import { createHash } from "node:crypto";
 import type {
 	Evidence,
 	ResearchNote,
 	ResearchNoteListItem,
 } from "@devgraph/shared";
 import { pool } from "../db";
+import { planEvidenceSync, splitEvidenceParagraphs } from "./evidenceSync";
 
 export interface ResearchNoteInput {
 	slug: string;
@@ -33,7 +33,7 @@ export async function upsertResearchNote(
 		throw new Error(`Failed to upsert research note: ${note.slug}`);
 	}
 
-	await replaceEvidence(id, splitEvidenceParagraphs(note.body));
+	await syncEvidence(id, splitEvidenceParagraphs(note.body));
 	return id;
 }
 
@@ -72,24 +72,59 @@ export async function getEvidenceForResearchNote(
 	return result.rows;
 }
 
-async function replaceEvidence(
+async function syncEvidence(
 	researchNoteId: string,
 	paragraphs: string[],
 ): Promise<void> {
 	const client = await pool.connect();
 	try {
 		await client.query("BEGIN");
-		await client.query("DELETE FROM evidence WHERE research_note_id = $1", [
-			researchNoteId,
-		]);
 
-		for (const [index, text] of paragraphs.entries()) {
+		const existing = await client.query<{
+			id: string;
+			content_hash: string;
+			ordinal: number;
+		}>(
+			`SELECT id, content_hash, ordinal
+			 FROM evidence
+			 WHERE research_note_id = $1
+			 ORDER BY ordinal ASC`,
+			[researchNoteId],
+		);
+		const plan = planEvidenceSync(paragraphs, existing.rows);
+
+		if (existing.rows.length > 0) {
 			await client.query(
-				`INSERT INTO evidence (research_note_id, ordinal, text, content_hash, updated_at)
-                 VALUES ($1, $2, $3, $4, now())`,
-				[researchNoteId, index + 1, text, hashText(text)],
+				`UPDATE evidence
+				 SET ordinal = -ordinal, updated_at = now()
+				 WHERE research_note_id = $1`,
+				[researchNoteId],
 			);
 		}
+
+		for (const item of plan.items) {
+			if (item.existingId) {
+				await client.query(
+					`UPDATE evidence
+					 SET ordinal = $2, text = $3, content_hash = $4, updated_at = now()
+					 WHERE id = $1`,
+					[item.existingId, item.ordinal, item.text, item.contentHash],
+				);
+				continue;
+			}
+
+			await client.query(
+				`INSERT INTO evidence (research_note_id, ordinal, text, content_hash, updated_at)
+				 VALUES ($1, $2, $3, $4, now())`,
+				[researchNoteId, item.ordinal, item.text, item.contentHash],
+			);
+		}
+
+		await client.query(
+			`DELETE FROM evidence
+			 WHERE research_note_id = $1 AND ordinal < 0`,
+			[researchNoteId],
+		);
 
 		await client.query("COMMIT");
 	} catch (error) {
@@ -98,15 +133,4 @@ async function replaceEvidence(
 	} finally {
 		client.release();
 	}
-}
-
-function splitEvidenceParagraphs(markdown: string): string[] {
-	return markdown
-		.split(/\n\s*\n/g)
-		.map((paragraph) => paragraph.trim())
-		.filter((paragraph) => paragraph.length > 0);
-}
-
-function hashText(text: string): string {
-	return createHash("sha256").update(text).digest("hex");
 }

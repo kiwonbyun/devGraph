@@ -124,8 +124,8 @@ export const sampleNodeCandidates: NodeCandidatePayload[] = [
 
 export const sampleEdgeCandidates: EdgeCandidatePayload[] = [
 	{
-		source_key: "soybean",
-		target_key: "crushing",
+		source_key: "crushing",
+		target_key: "soybean",
 		edge_type: "uses",
 		description: "원료 대두를 수입해 국내에서 착유한다.",
 		evidence_ordinals: [1, 2],
@@ -169,13 +169,13 @@ export const sampleEdgeCandidates: EdgeCandidatePayload[] = [
 	{
 		source_key: "frying-oil",
 		target_key: "chicken-franchise",
-		edge_type: "supplies_to",
+		edge_type: "flows_to",
 		description: "튀김유는 치킨프랜차이즈에 B2B로 대량 판매된다.",
 		evidence_ordinals: [1, 5],
 	},
 	{
-		source_key: "soybean-meal",
-		target_key: "feed-mixing",
+		source_key: "feed-mixing",
+		target_key: "soybean-meal",
 		edge_type: "uses",
 		description: "대두박은 배합사료 제조의 주요 투입물이다.",
 		evidence_ordinals: [3, 5],
@@ -190,7 +190,7 @@ export const sampleEdgeCandidates: EdgeCandidatePayload[] = [
 	{
 		source_key: "compound-feed",
 		target_key: "broiler-integrator",
-		edge_type: "supplies_to",
+		edge_type: "flows_to",
 		description: "배합사료는 육계계열화업체에 판매된다.",
 		evidence_ordinals: [3, 5],
 	},

@@ -1,5 +1,5 @@
-import "dotenv/config";
 import express from "express";
+import { config } from "./config";
 import { migrate, pool } from "./db";
 import { extractionsRouter } from "./extractions/routes";
 import { industryMapRouter } from "./industryMap/routes";
@@ -22,11 +22,12 @@ async function main() {
 	console.log("DB connected:", result.rows[0]);
 	await migrate(); // DB 연결 후 마이그레이션 수행
 
-	const contentDir = process.env.CONTENT_DIR ?? "../content";
-	const n = await ingest(contentDir);
-	console.log(`ingested ${n} articles`);
+	const n = await ingest(config.contentDir);
+	console.log(`ingested ${n} research notes`);
 
-	app.listen(8080, () => console.log("Server is running on port 8080"));
+	app.listen(config.port, () =>
+		console.log(`Server is running on port ${config.port}`),
+	);
 }
 
 main().catch((err) => {
