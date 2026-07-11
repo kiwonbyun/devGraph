@@ -6,7 +6,7 @@ import { api } from "../lib/api";
 import { extractionRunQueryOptions } from "../lib/queries";
 
 export function ExtractionRunReview() {
-	const { runId } = useParams({ from: "/extraction-runs/$runId" });
+	const { runId } = useParams({ from: "/admin/extraction-runs/$runId" });
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
 	const [isApproving, setIsApproving] = useState(false);
@@ -36,14 +36,14 @@ export function ExtractionRunReview() {
 	const isClosed = data.status !== "pending";
 	const refetchRun = async () => {
 		await queryClient.invalidateQueries({
-			queryKey: ["extraction-runs", runId],
+			queryKey: ["admin", "extraction-runs", runId],
 		});
 	};
 
 	return (
 		<div className="mx-auto max-w-5xl space-y-8">
 			<Link
-				to="/research-notes/$slug"
+				to="/admin/research-notes/$slug"
 				params={{ slug: data.research_note_slug }}
 				className="font-mono text-slate-400 text-xs transition-colors hover:text-indigo-600"
 			>
@@ -65,7 +65,7 @@ export function ExtractionRunReview() {
 						setIsApproving(true);
 						try {
 							await api.post(
-								`/extraction-runs/${encodeURIComponent(runId)}/approve`,
+								`/admin/extraction-runs/${encodeURIComponent(runId)}/approve`,
 							);
 							await queryClient.invalidateQueries({
 								queryKey: ["industry-map"],

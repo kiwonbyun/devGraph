@@ -4,7 +4,10 @@ import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { useState } from "react";
 import { NoteEditor } from "../components/NoteEditor";
 import { api, isNotFoundError } from "../lib/api";
-import { adminResearchNoteQueryOptions } from "../lib/queries";
+import {
+	adminResearchNoteQueryOptions,
+	extractionRunsQueryOptions,
+} from "../lib/queries";
 
 export function EditResearchNote() {
 	const { slug } = useParams({ from: "/admin/research-notes/$slug" });
@@ -101,6 +104,8 @@ export function EditResearchNote() {
 				</div>
 			</div>
 
+			<ExtractionPanel slug={slug} />
+
 			<NoteEditor
 				key={data.updated_at}
 				initialTitle={data.title}
@@ -135,5 +140,85 @@ function BackLink() {
 		>
 			← 리서치 글
 		</Link>
+	);
+}
+
+function ExtractionPanel({ slug }: { slug: string }) {
+	const navigate = useNavigate();
+	const queryClient = useQueryClient();
+	const runs = useQuery(extractionRunsQueryOptions(slug));
+	const [busy, setBusy] = useState(false);
+	const [error, setError] = useState<string | null>(null);
+
+	async function runExtraction(kind: "llm" | "sample") {
+		setBusy(true);
+		setError(null);
+		try {
+			const path =
+				kind === "llm"
+					? `/admin/research-notes/${encodeURIComponent(slug)}/extraction-runs`
+					: `/admin/research-notes/${encodeURIComponent(slug)}/extraction-runs/sample`;
+			const { data } = await api.post<{ id: string }>(path);
+			await queryClient.invalidateQueries({
+				queryKey: ["admin", "extraction-runs", "note", slug],
+			});
+			await navigate({
+				to: "/admin/extraction-runs/$runId",
+				params: { runId: data.id },
+			});
+		} catch (cause) {
+			const message =
+				(cause as { response?: { data?: { message?: string } } })?.response
+					?.data?.message ?? "추출에 실패했습니다.";
+			setError(message);
+		} finally {
+			setBusy(false);
+		}
+	}
+
+	return (
+		<section className="rounded border border-slate-200 bg-white p-4">
+			<div className="flex items-center justify-between">
+				<h2 className="font-semibold text-slate-950 text-sm">AI 추출</h2>
+				<div className="flex gap-2">
+					<button
+						type="button"
+						disabled={busy}
+						onClick={() => runExtraction("llm")}
+						className="rounded bg-slate-950 px-3 py-1.5 font-medium text-white text-xs transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+					>
+						{busy ? "추출 중" : "AI 추출 실행"}
+					</button>
+					<button
+						type="button"
+						disabled={busy}
+						onClick={() => runExtraction("sample")}
+						className="rounded border border-slate-200 px-3 py-1.5 font-medium text-slate-600 text-xs transition hover:bg-slate-50 disabled:opacity-50"
+					>
+						샘플(dev)
+					</button>
+				</div>
+			</div>
+			{error ? <p className="mt-2 text-red-700 text-xs">{error}</p> : null}
+			{runs.data && runs.data.length > 0 ? (
+				<ul className="mt-3 space-y-1">
+					{runs.data.slice(0, 5).map((run) => (
+						<li key={run.id}>
+							<Link
+								to="/admin/extraction-runs/$runId"
+								params={{ runId: run.id }}
+								className="font-mono text-indigo-600 text-xs hover:text-indigo-700"
+							>
+								#{run.id} · {run.source} · {run.status}
+							</Link>
+						</li>
+					))}
+				</ul>
+			) : (
+				<p className="mt-2 text-slate-400 text-xs">
+					아직 추출 실행이 없습니다.
+				</p>
+			)}
+		</section>
 	);
 }

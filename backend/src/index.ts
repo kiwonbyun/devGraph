@@ -17,9 +17,9 @@ app.get("/healthz", (_req, res) => {
 
 app.use("/api/admin", authRouter);
 app.use("/api/admin/research-notes", adminResearchNotesRouter);
+app.use("/api/admin", extractionsRouter);
 app.use("/api/research-notes", researchNotesRouter);
 app.use("/api/industry-map", industryMapRouter);
-app.use("/api", extractionsRouter);
 
 async function main() {
 	const result = await pool.query("SELECT version()");

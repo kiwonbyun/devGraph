@@ -5,16 +5,22 @@ import type {
 	ExtractionRunListItem,
 } from "@devgraph/shared";
 import { pool } from "../db";
+import type {
+	CandidateType,
+	CompanyRoleCandidatePayload,
+	EdgeCandidatePayload,
+	NodeCandidatePayload,
+} from "./candidateTypes";
+import { extractGraphCandidates, LlmNotConfiguredError } from "./llm";
 import {
-	type CompanyRoleCandidatePayload,
-	type EdgeCandidatePayload,
-	type NodeCandidatePayload,
+	sampleAliasCandidates,
+	sampleClusterCandidates,
 	sampleCompanyRoleCandidates,
 	sampleEdgeCandidates,
 	sampleNodeCandidates,
+	sampleNodeRelationCandidates,
 } from "./sampleData";
 
-type CandidateType = "node" | "edge" | "company_role";
 type ReviewableCandidateStatus = Extract<
 	ExtractionCandidateStatus,
 	"pending" | "rejected"
@@ -53,6 +59,15 @@ export async function createSampleExtractionRun(
 		for (const payload of sampleCompanyRoleCandidates) {
 			await insertCandidate(client, runId, "company_role", payload);
 		}
+		for (const payload of sampleNodeRelationCandidates) {
+			await insertCandidate(client, runId, "node_relation", payload);
+		}
+		for (const payload of sampleAliasCandidates) {
+			await insertCandidate(client, runId, "alias", payload);
+		}
+		for (const payload of sampleClusterCandidates) {
+			await insertCandidate(client, runId, "cluster", payload);
+		}
 
 		await client.query("COMMIT");
 		return { id: runId };
@@ -61,6 +76,88 @@ export async function createSampleExtractionRun(
 		throw error;
 	} finally {
 		client.release();
+	}
+}
+
+// 실제 LLM 을 호출해 후보를 생성한다. 실패하면 run 을 'error' 상태로 남긴다.
+export async function createLlmExtractionRun(
+	slug: string,
+): Promise<{ id: string }> {
+	const note = await pool.query<{ id: string; title: string }>(
+		"SELECT id, title FROM research_notes WHERE slug = $1",
+		[slug],
+	);
+	const researchNote = note.rows[0];
+	if (!researchNote) {
+		throw new Error(`Research note not found: ${slug}`);
+	}
+
+	const evidence = await pool.query<{ ordinal: number; text: string }>(
+		"SELECT ordinal, text FROM evidence WHERE research_note_id = $1 ORDER BY ordinal ASC",
+		[researchNote.id],
+	);
+
+	const run = await pool.query<{ id: string }>(
+		`INSERT INTO extraction_runs (research_note_id, status, source, model, updated_at)
+         VALUES ($1, 'pending', 'llm', $2, now())
+         RETURNING id`,
+		[researchNote.id, null],
+	);
+	const runId = run.rows[0]?.id;
+	if (!runId) throw new Error("Failed to create extraction run");
+
+	try {
+		const extraction = await extractGraphCandidates({
+			title: researchNote.title,
+			evidence: evidence.rows,
+		});
+
+		const client = await pool.connect();
+		try {
+			await client.query("BEGIN");
+			for (const payload of extraction.result.nodes) {
+				await insertCandidate(client, runId, "node", payload);
+			}
+			for (const payload of extraction.result.edges) {
+				await insertCandidate(client, runId, "edge", payload);
+			}
+			for (const payload of extraction.result.company_roles) {
+				await insertCandidate(client, runId, "company_role", payload);
+			}
+			for (const payload of extraction.result.node_relations) {
+				await insertCandidate(client, runId, "node_relation", payload);
+			}
+			for (const payload of extraction.result.aliases) {
+				await insertCandidate(client, runId, "alias", payload);
+			}
+			for (const payload of extraction.result.clusters) {
+				await insertCandidate(client, runId, "cluster", payload);
+			}
+			await client.query(
+				"UPDATE extraction_runs SET raw_response = $2, model = $3, updated_at = now() WHERE id = $1",
+				[runId, JSON.stringify(extraction.raw), extraction.model],
+			);
+			await client.query("COMMIT");
+		} catch (error) {
+			await client.query("ROLLBACK");
+			throw error;
+		} finally {
+			client.release();
+		}
+
+		return { id: runId };
+	} catch (error) {
+		const message =
+			error instanceof LlmNotConfiguredError
+				? error.message
+				: error instanceof Error
+					? error.message
+					: "LLM 추출에 실패했습니다.";
+		await pool.query(
+			"UPDATE extraction_runs SET status = 'error', error = $2, updated_at = now() WHERE id = $1",
+			[runId, message],
+		);
+		throw error;
 	}
 }
 

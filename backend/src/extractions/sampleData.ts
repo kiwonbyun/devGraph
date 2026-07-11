@@ -1,29 +1,11 @@
-import type { IndustryEdgeType, IndustryNodeType } from "@devgraph/shared";
-
-export interface NodeCandidatePayload {
-	key: string;
-	name: string;
-	node_type: IndustryNodeType;
-	description: string;
-	evidence_ordinals: number[];
-}
-
-export interface EdgeCandidatePayload {
-	source_key: string;
-	target_key: string;
-	edge_type: IndustryEdgeType;
-	description: string;
-	evidence_ordinals: number[];
-}
-
-export interface CompanyRoleCandidatePayload {
-	company_name: string;
-	is_listed: boolean;
-	ticker: string | null;
-	node_key: string;
-	role: string;
-	evidence_ordinal: number;
-}
+import type {
+	AliasCandidatePayload,
+	ClusterCandidatePayload,
+	CompanyRoleCandidatePayload,
+	EdgeCandidatePayload,
+	NodeCandidatePayload,
+	NodeRelationCandidatePayload,
+} from "./candidateTypes";
 
 export const sampleNodeCandidates: NodeCandidatePayload[] = [
 	{
@@ -313,5 +295,41 @@ export const sampleCompanyRoleCandidates: CompanyRoleCandidatePayload[] = [
 		node_key: "broiler-integrator",
 		role: "육계계열화",
 		evidence_ordinal: 3,
+	},
+];
+
+export const sampleNodeRelationCandidates: NodeRelationCandidatePayload[] = [
+	{
+		source_key: "soybean-meal",
+		target_key: "compound-feed",
+		relation_type: "part_of",
+	},
+];
+
+export const sampleAliasCandidates: AliasCandidatePayload[] = [
+	{ node_key: "crude-oil", alias: "crude vegetable oil" },
+	{ node_key: "soybean-meal", alias: "SBM" },
+];
+
+export const sampleClusterCandidates: ClusterCandidatePayload[] = [
+	{
+		name: "치킨 밸류체인",
+		description:
+			"대두/식물성 원유 수입부터 식용유·대두박·배합사료·육계까지의 흐름",
+		node_keys: [
+			"soybean",
+			"crude-oil",
+			"port-terminal",
+			"crushing",
+			"refining",
+			"frying-oil",
+			"soybean-meal",
+			"feed-mixing",
+			"compound-feed",
+			"broiler-integrator",
+			"contract-farm",
+			"chicken",
+			"chicken-franchise",
+		],
 	},
 ];

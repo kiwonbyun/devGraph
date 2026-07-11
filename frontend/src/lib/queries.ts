@@ -77,10 +77,10 @@ export const industryMapQueryOptions = queryOptions({
 
 export const extractionRunsQueryOptions = (slug: string) =>
 	queryOptions({
-		queryKey: ["research-notes", slug, "extraction-runs"],
+		queryKey: ["admin", "extraction-runs", "note", slug],
 		queryFn: async (): Promise<ExtractionRunListItem[]> => {
 			const { data } = await api.get<ExtractionRunListItem[]>(
-				`/research-notes/${encodeURIComponent(slug)}/extraction-runs`,
+				`/admin/research-notes/${encodeURIComponent(slug)}/extraction-runs`,
 			);
 			return data;
 		},
@@ -89,10 +89,10 @@ export const extractionRunsQueryOptions = (slug: string) =>
 
 export const extractionRunQueryOptions = (runId: string) =>
 	queryOptions({
-		queryKey: ["extraction-runs", runId],
+		queryKey: ["admin", "extraction-runs", runId],
 		queryFn: async (): Promise<ExtractionRunDetail> => {
 			const { data } = await api.get<ExtractionRunDetail>(
-				`/extraction-runs/${encodeURIComponent(runId)}`,
+				`/admin/extraction-runs/${encodeURIComponent(runId)}`,
 			);
 			return data;
 		},

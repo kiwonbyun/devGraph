@@ -1,13 +1,17 @@
 import { Router } from "express";
+import { requireAdmin } from "../auth/middleware";
 import {
 	approveExtractionRun,
+	createLlmExtractionRun,
 	createSampleExtractionRun,
 	getExtractionRunDetail,
 	getExtractionRuns,
 	updateExtractionCandidate,
 } from "./repo";
 
+// 추출/검수는 전부 관리자 전용. /api/admin 아래에 마운트한다.
 export const extractionsRouter = Router();
+extractionsRouter.use(requireAdmin);
 
 extractionsRouter.get(
 	"/research-notes/:slug/extraction-runs",
@@ -21,13 +25,30 @@ extractionsRouter.get(
 	},
 );
 
+// 실제 LLM 추출.
+extractionsRouter.post(
+	"/research-notes/:slug/extraction-runs",
+	async (req, res) => {
+		try {
+			res.status(201).json(await createLlmExtractionRun(req.params.slug));
+		} catch (error) {
+			console.error("Error creating LLM extraction run:", error);
+			res.status(502).json({
+				error: "extraction_failed",
+				message: error instanceof Error ? error.message : "unknown",
+			});
+		}
+	},
+);
+
+// 개발/테스트용 샘플 추출.
 extractionsRouter.post(
 	"/research-notes/:slug/extraction-runs/sample",
 	async (req, res) => {
 		try {
 			res.status(201).json(await createSampleExtractionRun(req.params.slug));
 		} catch (error) {
-			console.error("Error creating extraction run:", error);
+			console.error("Error creating sample extraction run:", error);
 			res.status(500).json({ error: "internal" });
 		}
 	},

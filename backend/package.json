@@ -21,10 +21,11 @@
 		"typescript": "^6.0.3"
 	},
 	"dependencies": {
+		"@anthropic-ai/sdk": "^0.111.0",
+		"@devgraph/shared": "workspace:*",
 		"dotenv": "^17.4.2",
 		"express": "^5.2.1",
 		"gray-matter": "^4.0.3",
-		"pg": "^8.22.0",
-		"@devgraph/shared": "workspace:*"
+		"pg": "^8.22.0"
 	}
 }

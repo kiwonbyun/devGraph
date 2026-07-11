@@ -29,9 +29,9 @@ const industryNodeRoute = createRoute({
 	component: IndustryNodeDetail,
 });
 
-const extractionRunRoute = createRoute({
-	getParentRoute: () => rootRoute,
-	path: "/extraction-runs/$runId",
+const adminExtractionRunRoute = createRoute({
+	getParentRoute: () => adminRoute,
+	path: "extraction-runs/$runId",
 	component: ExtractionRunReview,
 });
 
@@ -63,10 +63,10 @@ export const routeTree = rootRoute.addChildren([
 	indexRoute,
 	researchNoteRoute,
 	industryNodeRoute,
-	extractionRunRoute,
 	adminRoute.addChildren([
 		adminIndexRoute,
 		adminNewNoteRoute,
 		adminEditNoteRoute,
+		adminExtractionRunRoute,
 	]),
 ]);
