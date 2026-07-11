@@ -67,6 +67,18 @@ export const adminResearchNoteQueryOptions = (slug: string) =>
 		retry: (failureCount, error) => !isNotFoundError(error) && failureCount < 2,
 	});
 
+export const adminEvidenceQueryOptions = (slug: string) =>
+	queryOptions({
+		queryKey: ["admin", "research-notes", slug, "evidence"],
+		queryFn: async (): Promise<Evidence[]> => {
+			const { data } = await api.get<Evidence[]>(
+				`/admin/research-notes/${encodeURIComponent(slug)}/evidence`,
+			);
+			return data;
+		},
+		retry: (failureCount, error) => !isNotFoundError(error) && failureCount < 2,
+	});
+
 export const industryMapQueryOptions = queryOptions({
 	queryKey: ["industry-map"],
 	queryFn: async (): Promise<IndustryMap> => {

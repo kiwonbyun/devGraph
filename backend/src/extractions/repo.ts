@@ -258,6 +258,52 @@ export async function updateExtractionCandidate(
 	return result.rows[0] ?? null;
 }
 
+// 검수 화면에서 수동으로 후보를 추가한다. run 이 pending 일 때만 허용.
+export async function addExtractionCandidate(
+	runId: string,
+	candidateType: CandidateType,
+	payload: unknown,
+): Promise<ExtractionCandidate | null> {
+	const run = await pool.query<{ status: string }>(
+		"SELECT status FROM extraction_runs WHERE id = $1",
+		[runId],
+	);
+	const status = run.rows[0]?.status;
+	if (!status) return null;
+	if (status !== "pending") {
+		throw new Error("Cannot add candidates after the extraction run is closed");
+	}
+
+	const result = await pool.query<ExtractionCandidate>(
+		`INSERT INTO extraction_candidates (extraction_run_id, candidate_type, payload, updated_at)
+         VALUES ($1, $2, $3, now())
+         RETURNING id, extraction_run_id, candidate_type, status, payload, created_at, updated_at`,
+		[runId, candidateType, JSON.stringify(payload)],
+	);
+	return result.rows[0] ?? null;
+}
+
+// 병합 제안용: 이름으로 기존 산업 노드를 검색한다.
+export async function searchIndustryNodes(
+	q: string,
+): Promise<{ id: string; canonical_name: string; node_type: string }[]> {
+	const query = q.trim();
+	if (!query) return [];
+	const result = await pool.query<{
+		id: string;
+		canonical_name: string;
+		node_type: string;
+	}>(
+		`SELECT id, canonical_name, node_type
+		 FROM industry_nodes
+		 WHERE canonical_name ILIKE '%' || $1 || '%'
+		 ORDER BY canonical_name ASC
+		 LIMIT 10`,
+		[query],
+	);
+	return result.rows;
+}
+
 export async function approveExtractionRun(runId: string): Promise<void> {
 	const detail = await getExtractionRunDetail(runId);
 	if (!detail) throw new Error(`Extraction run not found: ${runId}`);
@@ -319,9 +365,8 @@ export async function approveExtractionRun(runId: string): Promise<void> {
 			const sourceNodeId = nodeIds.get(payload.source_key);
 			const targetNodeId = nodeIds.get(payload.target_key);
 			if (!sourceNodeId || !targetNodeId) {
-				throw new Error(
-					`Missing node for edge ${payload.source_key} -> ${payload.target_key}`,
-				);
+				// 참조하는 노드가 제외되었으면 이 엣지는 적용하지 않고 건너뛴다.
+				continue;
 			}
 			const edgeId = await getOrCreateIndustryEdge(
 				client,
@@ -342,11 +387,12 @@ export async function approveExtractionRun(runId: string): Promise<void> {
 
 		for (const candidate of companyRoleCandidates) {
 			const payload = candidate.payload as CompanyRoleCandidatePayload;
-			const companyId = await getOrCreateCompany(client, payload);
 			const nodeId = nodeIds.get(payload.node_key);
-			if (!companyId || !nodeId) {
-				throw new Error(`Failed to approve company ${payload.company_name}`);
+			if (!nodeId) {
+				// 참조하는 노드가 제외되었으면 이 기업 역할은 건너뛴다.
+				continue;
 			}
+			const companyId = await getOrCreateCompany(client, payload);
 			await client.query(
 				`INSERT INTO company_roles (company_id, industry_node_id, role, evidence_id, updated_at)
                  VALUES ($1, $2, $3, $4, now())
@@ -378,6 +424,16 @@ async function getOrCreateIndustryNode(
 	client: Pick<typeof pool, "query">,
 	payload: NodeCandidatePayload,
 ): Promise<string> {
+	// 검수에서 기존 노드와 병합하도록 지정한 경우 그 노드를 그대로 사용한다.
+	if (payload.merge_into_node_id) {
+		const merged = await client.query<{ id: string }>(
+			"SELECT id FROM industry_nodes WHERE id = $1",
+			[payload.merge_into_node_id],
+		);
+		const mergedId = merged.rows[0]?.id;
+		if (mergedId) return mergedId;
+	}
+
 	const insert = await client.query<{ id: string }>(
 		`INSERT INTO industry_nodes (canonical_name, node_type, description, updated_at)
 		 VALUES ($1, $2, $3, now())

@@ -1,13 +1,25 @@
 import { Router } from "express";
 import { requireAdmin } from "../auth/middleware";
+import type { CandidateType } from "./candidateTypes";
 import {
+	addExtractionCandidate,
 	approveExtractionRun,
 	createLlmExtractionRun,
 	createSampleExtractionRun,
 	getExtractionRunDetail,
 	getExtractionRuns,
+	searchIndustryNodes,
 	updateExtractionCandidate,
 } from "./repo";
+
+const CANDIDATE_TYPES: CandidateType[] = [
+	"node",
+	"edge",
+	"company_role",
+	"node_relation",
+	"cluster",
+	"alias",
+];
 
 // 추출/검수는 전부 관리자 전용. /api/admin 아래에 마운트한다.
 export const extractionsRouter = Router();
@@ -64,6 +76,44 @@ extractionsRouter.get("/extraction-runs/:runId", async (req, res) => {
 		res.status(500).json({ error: "internal" });
 	}
 });
+
+extractionsRouter.get("/industry-nodes/search", async (req, res) => {
+	try {
+		const q = typeof req.query.q === "string" ? req.query.q : "";
+		res.json(await searchIndustryNodes(q));
+	} catch (error) {
+		console.error("Error searching industry nodes:", error);
+		res.status(500).json({ error: "internal" });
+	}
+});
+
+extractionsRouter.post(
+	"/extraction-runs/:runId/candidates",
+	async (req, res) => {
+		try {
+			if (!isRecord(req.body)) {
+				return res.status(400).json({ error: "invalid body" });
+			}
+			const candidateType = req.body.candidate_type;
+			if (
+				typeof candidateType !== "string" ||
+				!CANDIDATE_TYPES.includes(candidateType as CandidateType)
+			) {
+				return res.status(400).json({ error: "invalid candidate_type" });
+			}
+			const candidate = await addExtractionCandidate(
+				req.params.runId,
+				candidateType as CandidateType,
+				req.body.payload,
+			);
+			if (!candidate) return res.status(404).json({ error: "not found" });
+			return res.status(201).json(candidate);
+		} catch (error) {
+			console.error("Error adding extraction candidate:", error);
+			res.status(500).json({ error: "internal" });
+		}
+	},
+);
 
 extractionsRouter.post("/extraction-runs/:runId/approve", async (req, res) => {
 	try {

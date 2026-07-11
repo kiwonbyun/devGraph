@@ -47,6 +47,12 @@ export interface IndustryNode {
 	description: string | null;
 }
 
+export interface IndustryNodeSearchResult {
+	id: string;
+	canonical_name: string;
+	node_type: IndustryNodeType;
+}
+
 export interface IndustryEdge {
 	id: string;
 	source_node_id: string;
