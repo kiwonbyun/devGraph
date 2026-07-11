@@ -15,11 +15,15 @@ export async function getIndustryMap(): Promise<IndustryMap> {
 		pool.query(`
             SELECT id, canonical_name, node_type, description
             FROM industry_nodes
+            WHERE is_active = TRUE
             ORDER BY id ASC`),
 		pool.query(`
-            SELECT id, source_node_id, target_node_id, edge_type, description
-            FROM industry_edges
-            ORDER BY id ASC`),
+            SELECT ed.id, ed.source_node_id, ed.target_node_id, ed.edge_type, ed.description
+            FROM industry_edges ed
+            JOIN industry_nodes sn ON sn.id = ed.source_node_id AND sn.is_active
+            JOIN industry_nodes tn ON tn.id = ed.target_node_id AND tn.is_active
+            WHERE ed.is_active = TRUE
+            ORDER BY ed.id ASC`),
 		pool.query(`
             SELECT
                 cr.id,

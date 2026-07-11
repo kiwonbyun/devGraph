@@ -138,11 +138,19 @@ export interface ExtractionRunListItem {
 	updated_at: string;
 }
 
+export type ExtractionDiffKind =
+	| "add"
+	| "modify"
+	| "remove"
+	| "unchanged"
+	| null;
+
 export interface ExtractionCandidate {
 	id: string;
 	extraction_run_id: string;
 	candidate_type: ExtractionCandidateType;
 	status: ExtractionCandidateStatus;
+	diff_kind: ExtractionDiffKind;
 	payload: unknown;
 	created_at: string;
 	updated_at: string;

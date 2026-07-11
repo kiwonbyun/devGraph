@@ -258,14 +258,23 @@ function CandidateListPane({
 						evidence_ordinals: [],
 					})
 				}
-				render={(c) => (
-					<NodeCard
-						key={c.id}
-						candidate={c}
-						isClosed={isClosed}
-						onChanged={onChanged}
-					/>
-				)}
+				render={(c) =>
+					c.diff_kind === "remove" ? (
+						<RemovalCard
+							key={c.id}
+							candidate={c}
+							isClosed={isClosed}
+							onChanged={onChanged}
+						/>
+					) : (
+						<NodeCard
+							key={c.id}
+							candidate={c}
+							isClosed={isClosed}
+							onChanged={onChanged}
+						/>
+					)
+				}
 			/>
 			<CandidateGroup
 				title="엣지"
@@ -280,15 +289,24 @@ function CandidateListPane({
 						evidence_ordinals: [],
 					})
 				}
-				render={(c) => (
-					<EdgeCard
-						key={c.id}
-						candidate={c}
-						isClosed={isClosed}
-						nodeOptions={nodeOptions}
-						onChanged={onChanged}
-					/>
-				)}
+				render={(c) =>
+					c.diff_kind === "remove" ? (
+						<RemovalCard
+							key={c.id}
+							candidate={c}
+							isClosed={isClosed}
+							onChanged={onChanged}
+						/>
+					) : (
+						<EdgeCard
+							key={c.id}
+							candidate={c}
+							isClosed={isClosed}
+							nodeOptions={nodeOptions}
+							onChanged={onChanged}
+						/>
+					)
+				}
 			/>
 			<CandidateGroup
 				title="기업 역할"
@@ -304,15 +322,24 @@ function CandidateListPane({
 						evidence_ordinal: 1,
 					})
 				}
-				render={(c) => (
-					<CompanyCard
-						key={c.id}
-						candidate={c}
-						isClosed={isClosed}
-						nodeOptions={nodeOptions}
-						onChanged={onChanged}
-					/>
-				)}
+				render={(c) =>
+					c.diff_kind === "remove" ? (
+						<RemovalCard
+							key={c.id}
+							candidate={c}
+							isClosed={isClosed}
+							onChanged={onChanged}
+						/>
+					) : (
+						<CompanyCard
+							key={c.id}
+							candidate={c}
+							isClosed={isClosed}
+							nodeOptions={nodeOptions}
+							onChanged={onChanged}
+						/>
+					)
+				}
 			/>
 			<CandidateGroup
 				title="계층 관계"
@@ -452,23 +479,48 @@ function useCandidateCard<T>(candidate: ExtractionCandidate) {
 	return { draft, setDraft, saving, error, isRejected, save, toggle };
 }
 
+function DiffChip({ kind }: { kind: string | null }) {
+	if (!kind || kind === "unchanged") return null;
+	const styles: Record<string, string> = {
+		add: "bg-emerald-50 text-emerald-700",
+		modify: "bg-amber-50 text-amber-700",
+		remove: "bg-red-50 text-red-700",
+	};
+	const labels: Record<string, string> = {
+		add: "추가",
+		modify: "수정",
+		remove: "삭제",
+	};
+	return (
+		<span
+			className={`rounded px-1.5 py-0.5 font-mono text-[10px] ${styles[kind] ?? "bg-slate-100 text-slate-500"}`}
+		>
+			{labels[kind] ?? kind}
+		</span>
+	);
+}
+
 function CardShell({
 	badge,
+	diffKind,
 	isRejected,
 	isClosed,
 	saving,
 	error,
 	onSave,
 	onToggle,
+	hideSave,
 	children,
 }: {
 	badge: string;
+	diffKind?: string | null;
 	isRejected: boolean;
 	isClosed: boolean;
 	saving: boolean;
 	error: string | null;
 	onSave: () => Promise<void>;
 	onToggle: () => Promise<void>;
+	hideSave?: boolean;
 	children: React.ReactNode;
 }) {
 	const disabled = isClosed || saving;
@@ -477,8 +529,11 @@ function CardShell({
 			className={`rounded border bg-white p-3 ${isRejected ? "border-slate-200 opacity-50" : "border-slate-200"}`}
 		>
 			<div className="mb-2 flex items-center justify-between">
-				<span className="rounded bg-slate-100 px-2 py-0.5 font-mono text-slate-500 text-xs">
-					{badge}
+				<span className="flex items-center gap-1.5">
+					<span className="rounded bg-slate-100 px-2 py-0.5 font-mono text-slate-500 text-xs">
+						{badge}
+					</span>
+					<DiffChip kind={diffKind ?? null} />
 				</span>
 				<div className="flex gap-1.5">
 					<button
@@ -489,14 +544,16 @@ function CardShell({
 					>
 						{isRejected ? "포함" : "제외"}
 					</button>
-					<button
-						type="button"
-						disabled={disabled || isRejected}
-						onClick={onSave}
-						className="rounded bg-slate-950 px-2 py-0.5 text-white text-xs transition hover:bg-slate-800 disabled:opacity-40"
-					>
-						{saving ? "…" : "저장"}
-					</button>
+					{hideSave ? null : (
+						<button
+							type="button"
+							disabled={disabled || isRejected}
+							onClick={onSave}
+							className="rounded bg-slate-950 px-2 py-0.5 text-white text-xs transition hover:bg-slate-800 disabled:opacity-40"
+						>
+							{saving ? "…" : "저장"}
+						</button>
+					)}
 				</div>
 			</div>
 			<div className="space-y-2">{children}</div>
@@ -558,6 +615,7 @@ function NodeCard({
 	return (
 		<CardShell
 			badge={`node · ${c.draft.key}`}
+			diffKind={candidate.diff_kind}
 			isRejected={c.isRejected}
 			isClosed={isClosed}
 			saving={c.saving}
@@ -688,6 +746,7 @@ function EdgeCard({
 	return (
 		<CardShell
 			badge="edge"
+			diffKind={candidate.diff_kind}
 			isRejected={c.isRejected}
 			isClosed={isClosed}
 			saving={c.saving}
@@ -786,6 +845,7 @@ function CompanyCard({
 	return (
 		<CardShell
 			badge="company"
+			diffKind={candidate.diff_kind}
 			isRejected={c.isRejected}
 			isClosed={isClosed}
 			saving={c.saving}
@@ -873,6 +933,7 @@ function RelationCard({
 	return (
 		<CardShell
 			badge="relation"
+			diffKind={candidate.diff_kind}
 			isRejected={c.isRejected}
 			isClosed={isClosed}
 			saving={c.saving}
@@ -934,6 +995,7 @@ function AliasCard({
 	return (
 		<CardShell
 			badge="alias"
+			diffKind={candidate.diff_kind}
 			isRejected={c.isRejected}
 			isClosed={isClosed}
 			saving={c.saving}
@@ -978,6 +1040,7 @@ function ClusterCard({
 	return (
 		<CardShell
 			badge="cluster"
+			diffKind={candidate.diff_kind}
 			isRejected={c.isRejected}
 			isClosed={isClosed}
 			saving={c.saving}
@@ -1009,6 +1072,51 @@ function ClusterCard({
 			</Field>
 			<p className="font-mono text-[10px] text-slate-400">
 				노드 {c.draft.node_keys.length}개
+			</p>
+		</CardShell>
+	);
+}
+
+function RemovalCard({
+	candidate,
+	isClosed,
+	onChanged,
+}: {
+	candidate: ExtractionCandidate;
+	isClosed: boolean;
+	onChanged: () => Promise<void>;
+}) {
+	const c = useCandidateCard<Record<string, unknown>>(candidate);
+	const p = candidate.payload as {
+		name?: string;
+		description?: string;
+		company_name?: string;
+		role?: string;
+	};
+	const summary =
+		p.name ??
+		p.description ??
+		[p.company_name, p.role].filter(Boolean).join(" · ") ??
+		"항목";
+	return (
+		<CardShell
+			badge={`${candidate.candidate_type}`}
+			diffKind="remove"
+			isRejected={c.isRejected}
+			isClosed={isClosed}
+			saving={c.saving}
+			error={c.error}
+			hideSave
+			onSave={async () => {}}
+			onToggle={async () => {
+				await c.toggle();
+				await onChanged();
+			}}
+		>
+			<p className="text-slate-700 text-xs">{summary}</p>
+			<p className="text-[10px] text-slate-400">
+				이 글의 근거 연결을 제거하고, 남은 근거가 없으면 지도에서
+				비활성화합니다.
 			</p>
 		</CardShell>
 	);

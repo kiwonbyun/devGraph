@@ -14,7 +14,17 @@ import type {
 	NodeCandidatePayload,
 	NodeRelationCandidatePayload,
 } from "./candidateTypes";
-import { extractGraphCandidates, LlmNotConfiguredError } from "./llm";
+import {
+	buildDiff,
+	type DiffKind,
+	isNoteGraphEmpty,
+	loadNoteGraph,
+} from "./diff";
+import {
+	type ExtractionResult,
+	extractGraphCandidates,
+	LlmNotConfiguredError,
+} from "./llm";
 import {
 	sampleAliasCandidates,
 	sampleClusterCandidates,
@@ -53,24 +63,14 @@ export async function createSampleExtractionRun(
 		const runId = run.rows[0]?.id;
 		if (!runId) throw new Error("Failed to create extraction run");
 
-		for (const payload of sampleNodeCandidates) {
-			await insertCandidate(client, runId, "node", payload);
-		}
-		for (const payload of sampleEdgeCandidates) {
-			await insertCandidate(client, runId, "edge", payload);
-		}
-		for (const payload of sampleCompanyRoleCandidates) {
-			await insertCandidate(client, runId, "company_role", payload);
-		}
-		for (const payload of sampleNodeRelationCandidates) {
-			await insertCandidate(client, runId, "node_relation", payload);
-		}
-		for (const payload of sampleAliasCandidates) {
-			await insertCandidate(client, runId, "alias", payload);
-		}
-		for (const payload of sampleClusterCandidates) {
-			await insertCandidate(client, runId, "cluster", payload);
-		}
+		await insertCandidatesWithDiff(client, runId, researchNoteId, {
+			nodes: sampleNodeCandidates,
+			edges: sampleEdgeCandidates,
+			company_roles: sampleCompanyRoleCandidates,
+			node_relations: sampleNodeRelationCandidates,
+			aliases: sampleAliasCandidates,
+			clusters: sampleClusterCandidates,
+		});
 
 		await client.query("COMMIT");
 		return { id: runId };
@@ -118,24 +118,12 @@ export async function createLlmExtractionRun(
 		const client = await pool.connect();
 		try {
 			await client.query("BEGIN");
-			for (const payload of extraction.result.nodes) {
-				await insertCandidate(client, runId, "node", payload);
-			}
-			for (const payload of extraction.result.edges) {
-				await insertCandidate(client, runId, "edge", payload);
-			}
-			for (const payload of extraction.result.company_roles) {
-				await insertCandidate(client, runId, "company_role", payload);
-			}
-			for (const payload of extraction.result.node_relations) {
-				await insertCandidate(client, runId, "node_relation", payload);
-			}
-			for (const payload of extraction.result.aliases) {
-				await insertCandidate(client, runId, "alias", payload);
-			}
-			for (const payload of extraction.result.clusters) {
-				await insertCandidate(client, runId, "cluster", payload);
-			}
+			await insertCandidatesWithDiff(
+				client,
+				runId,
+				researchNote.id,
+				extraction.result,
+			);
 			await client.query(
 				"UPDATE extraction_runs SET raw_response = $2, model = $3, updated_at = now() WHERE id = $1",
 				[runId, JSON.stringify(extraction.raw), extraction.model],
@@ -202,7 +190,7 @@ export async function getExtractionRunDetail(
 
 	const candidates = await pool.query<ExtractionCandidate>(
 		`
-        SELECT id, extraction_run_id, candidate_type, status, payload, created_at, updated_at
+        SELECT id, extraction_run_id, candidate_type, status, diff_kind, payload, created_at, updated_at
         FROM extraction_candidates
         WHERE extraction_run_id = $1
         ORDER BY
@@ -251,7 +239,7 @@ export async function updateExtractionCandidate(
 			payload = COALESCE($3::jsonb, payload),
 			updated_at = now()
 		WHERE id = $1
-		RETURNING id, extraction_run_id, candidate_type, status, payload, created_at, updated_at`,
+		RETURNING id, extraction_run_id, candidate_type, status, diff_kind, payload, created_at, updated_at`,
 		[
 			candidateId,
 			input.status ?? null,
@@ -280,7 +268,7 @@ export async function addExtractionCandidate(
 	const result = await pool.query<ExtractionCandidate>(
 		`INSERT INTO extraction_candidates (extraction_run_id, candidate_type, payload, updated_at)
          VALUES ($1, $2, $3, now())
-         RETURNING id, extraction_run_id, candidate_type, status, payload, created_at, updated_at`,
+         RETURNING id, extraction_run_id, candidate_type, status, diff_kind, payload, created_at, updated_at`,
 		[runId, candidateType, JSON.stringify(payload)],
 	);
 	return result.rows[0] ?? null;
@@ -358,9 +346,31 @@ export async function approveExtractionRun(runId: string): Promise<void> {
 		await client.query("BEGIN");
 
 		for (const candidate of nodeCandidates) {
-			const payload = candidate.payload as NodeCandidatePayload;
+			const payload = candidate.payload as NodeCandidatePayload & {
+				existing_node_id?: string;
+			};
+			if (candidate.diff_kind === "remove") {
+				await removeNodeFromNote(
+					client,
+					payload.existing_node_id,
+					researchNoteId,
+				);
+				await approveCandidate(client, candidate.id);
+				continue;
+			}
 			const nodeId = await getOrCreateIndustryNode(client, payload);
 			nodeIds.set(payload.key, nodeId);
+			if (candidate.diff_kind === "modify") {
+				await client.query(
+					"UPDATE industry_nodes SET description = $2, is_active = TRUE, updated_at = now() WHERE id = $1",
+					[nodeId, payload.description],
+				);
+			} else {
+				await client.query(
+					"UPDATE industry_nodes SET is_active = TRUE WHERE id = $1 AND is_active = FALSE",
+					[nodeId],
+				);
+			}
 			await linkEvidence(
 				client,
 				"industry_node_evidence",
@@ -373,7 +383,18 @@ export async function approveExtractionRun(runId: string): Promise<void> {
 		}
 
 		for (const candidate of edgeCandidates) {
-			const payload = candidate.payload as EdgeCandidatePayload;
+			const payload = candidate.payload as EdgeCandidatePayload & {
+				existing_edge_id?: string;
+			};
+			if (candidate.diff_kind === "remove") {
+				await removeEdgeFromNote(
+					client,
+					payload.existing_edge_id,
+					researchNoteId,
+				);
+				await approveCandidate(client, candidate.id);
+				continue;
+			}
 			const sourceNodeId = nodeIds.get(payload.source_key);
 			const targetNodeId = nodeIds.get(payload.target_key);
 			if (!sourceNodeId || !targetNodeId) {
@@ -386,6 +407,17 @@ export async function approveExtractionRun(runId: string): Promise<void> {
 				targetNodeId,
 				payload,
 			);
+			if (candidate.diff_kind === "modify") {
+				await client.query(
+					"UPDATE industry_edges SET description = $2, is_active = TRUE, updated_at = now() WHERE id = $1",
+					[edgeId, payload.description],
+				);
+			} else {
+				await client.query(
+					"UPDATE industry_edges SET is_active = TRUE WHERE id = $1 AND is_active = FALSE",
+					[edgeId],
+				);
+			}
 			await linkEvidence(
 				client,
 				"industry_edge_evidence",
@@ -398,7 +430,18 @@ export async function approveExtractionRun(runId: string): Promise<void> {
 		}
 
 		for (const candidate of companyRoleCandidates) {
-			const payload = candidate.payload as CompanyRoleCandidatePayload;
+			const payload = candidate.payload as CompanyRoleCandidatePayload & {
+				existing_company_role_id?: string;
+			};
+			if (candidate.diff_kind === "remove") {
+				if (payload.existing_company_role_id) {
+					await client.query("DELETE FROM company_roles WHERE id = $1", [
+						payload.existing_company_role_id,
+					]);
+				}
+				await approveCandidate(client, candidate.id);
+				continue;
+			}
 			const nodeId = nodeIds.get(payload.node_key);
 			if (!nodeId) {
 				// 참조하는 노드가 제외되었으면 이 기업 역할은 건너뛴다.
@@ -564,6 +607,55 @@ async function getOrCreateCompany(
 	return existingId;
 }
 
+// 삭제 diff: 이 노트의 근거 연결만 제거하고, 남은 근거가 없으면 노드를 비활성화한다.
+async function removeNodeFromNote(
+	client: Pick<typeof pool, "query">,
+	nodeId: string | undefined,
+	researchNoteId: string,
+): Promise<void> {
+	if (!nodeId) return;
+	await client.query(
+		`DELETE FROM industry_node_evidence
+		 WHERE industry_node_id = $1
+		   AND evidence_id IN (SELECT id FROM evidence WHERE research_note_id = $2)`,
+		[nodeId, researchNoteId],
+	);
+	const remaining = await client.query<{ count: string }>(
+		"SELECT count(*)::text AS count FROM industry_node_evidence WHERE industry_node_id = $1",
+		[nodeId],
+	);
+	if (remaining.rows[0]?.count === "0") {
+		await client.query(
+			"UPDATE industry_nodes SET is_active = FALSE, updated_at = now() WHERE id = $1",
+			[nodeId],
+		);
+	}
+}
+
+async function removeEdgeFromNote(
+	client: Pick<typeof pool, "query">,
+	edgeId: string | undefined,
+	researchNoteId: string,
+): Promise<void> {
+	if (!edgeId) return;
+	await client.query(
+		`DELETE FROM industry_edge_evidence
+		 WHERE industry_edge_id = $1
+		   AND evidence_id IN (SELECT id FROM evidence WHERE research_note_id = $2)`,
+		[edgeId, researchNoteId],
+	);
+	const remaining = await client.query<{ count: string }>(
+		"SELECT count(*)::text AS count FROM industry_edge_evidence WHERE industry_edge_id = $1",
+		[edgeId],
+	);
+	if (remaining.rows[0]?.count === "0") {
+		await client.query(
+			"UPDATE industry_edges SET is_active = FALSE, updated_at = now() WHERE id = $1",
+			[edgeId],
+		);
+	}
+}
+
 async function getOrCreateCluster(
 	client: Pick<typeof pool, "query">,
 	payload: ClusterCandidatePayload,
@@ -585,12 +677,49 @@ async function insertCandidate(
 	runId: string,
 	candidateType: CandidateType,
 	payload: unknown,
+	diffKind: DiffKind | null = null,
 ): Promise<void> {
 	await client.query(
-		`INSERT INTO extraction_candidates (extraction_run_id, candidate_type, payload, updated_at)
-         VALUES ($1, $2, $3, now())`,
-		[runId, candidateType, JSON.stringify(payload)],
+		`INSERT INTO extraction_candidates (extraction_run_id, candidate_type, payload, diff_kind, updated_at)
+         VALUES ($1, $2, $3, $4, now())`,
+		[runId, candidateType, JSON.stringify(payload), diffKind],
 	);
+}
+
+// 첫 추출이면 diff 없이 그대로, 이미 승인 그래프가 있으면 diff 를 계산해 넣는다.
+async function insertCandidatesWithDiff(
+	client: Pick<typeof pool, "query">,
+	runId: string,
+	noteId: string,
+	result: ExtractionResult,
+): Promise<void> {
+	const existing = await loadNoteGraph(noteId);
+	if (isNoteGraphEmpty(existing)) {
+		const plain: [CandidateType, unknown[]][] = [
+			["node", result.nodes],
+			["edge", result.edges],
+			["company_role", result.company_roles],
+			["node_relation", result.node_relations],
+			["alias", result.aliases],
+			["cluster", result.clusters],
+		];
+		for (const [type, payloads] of plain) {
+			for (const payload of payloads) {
+				await insertCandidate(client, runId, type, payload, null);
+			}
+		}
+		return;
+	}
+
+	for (const item of buildDiff(result, existing)) {
+		await insertCandidate(
+			client,
+			runId,
+			item.candidateType,
+			item.payload,
+			item.diffKind,
+		);
+	}
 }
 
 async function approveCandidate(
