@@ -138,7 +138,9 @@ export async function updateExtractionCandidate(
 	const row = current.rows[0];
 	if (!row) return null;
 	if (row.run_status !== "pending") {
-		throw new Error("Cannot edit candidates after the extraction run is closed");
+		throw new Error(
+			"Cannot edit candidates after the extraction run is closed",
+		);
 	}
 
 	const result = await pool.query<ExtractionCandidate>(

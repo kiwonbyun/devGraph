@@ -37,37 +37,45 @@ export async function upsertResearchNote(
 	return id;
 }
 
-export async function getResearchNotes(): Promise<ResearchNoteListItem[]> {
-	const result = await pool.query<ResearchNoteListItem>(`
-        SELECT slug, title, updated_at FROM research_notes
-        ORDER BY updated_at DESC, title ASC`);
+export async function getResearchNotes(
+	publishedOnly: boolean,
+): Promise<ResearchNoteListItem[]> {
+	const result = await pool.query<ResearchNoteListItem>(
+		`SELECT slug, title, status, updated_at FROM research_notes
+         WHERE ($1::boolean IS FALSE OR status = 'published')
+         ORDER BY updated_at DESC, title ASC`,
+		[publishedOnly],
+	);
 
 	return result.rows;
 }
 
 export async function getResearchNote(
 	slug: string,
+	publishedOnly: boolean,
 ): Promise<ResearchNote | null> {
 	const result = await pool.query<ResearchNote>(
 		`
-        SELECT id, slug, title, body, source_path, created_at, updated_at
-        FROM research_notes WHERE slug = $1`,
-		[slug],
+        SELECT id, slug, title, body, status, source_path, created_at, updated_at
+        FROM research_notes
+        WHERE slug = $1 AND ($2::boolean IS FALSE OR status = 'published')`,
+		[slug, publishedOnly],
 	);
 	return result.rows[0] ?? null;
 }
 
 export async function getEvidenceForResearchNote(
 	slug: string,
+	publishedOnly: boolean,
 ): Promise<Evidence[]> {
 	const result = await pool.query<Evidence>(
 		`
         SELECT e.id, e.research_note_id, e.ordinal, e.text, e.content_hash, e.created_at, e.updated_at
         FROM evidence e
         JOIN research_notes n ON n.id = e.research_note_id
-        WHERE n.slug = $1
+        WHERE n.slug = $1 AND ($2::boolean IS FALSE OR n.status = 'published')
         ORDER BY e.ordinal ASC`,
-		[slug],
+		[slug, publishedOnly],
 	);
 	return result.rows;
 }

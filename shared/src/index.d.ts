@@ -1,6 +1,9 @@
+export type ResearchNoteStatus = "draft" | "published";
+
 export interface ResearchNoteListItem {
 	slug: string;
 	title: string;
+	status: ResearchNoteStatus;
 	updated_at: string;
 }
 
@@ -9,6 +12,7 @@ export interface ResearchNote {
 	slug: string;
 	title: string;
 	body: string;
+	status: ResearchNoteStatus;
 	source_path: string;
 	created_at: string;
 	updated_at: string;

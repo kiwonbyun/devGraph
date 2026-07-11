@@ -11,10 +11,13 @@ test("splitEvidenceParagraphs trims markdown into non-empty paragraphs", () => {
 });
 
 test("planEvidenceSync preserves evidence ids when paragraphs shift", () => {
-	const plan = planEvidenceSync(["new paragraph", "A", "B"], [
-		{ id: "1", content_hash: hashText("A") },
-		{ id: "2", content_hash: hashText("B") },
-	]);
+	const plan = planEvidenceSync(
+		["new paragraph", "A", "B"],
+		[
+			{ id: "1", content_hash: hashText("A") },
+			{ id: "2", content_hash: hashText("B") },
+		],
+	);
 
 	assert.equal(plan.items[0]?.existingId, undefined);
 	assert.equal(plan.items[1]?.existingId, "1");
@@ -23,11 +26,14 @@ test("planEvidenceSync preserves evidence ids when paragraphs shift", () => {
 });
 
 test("planEvidenceSync handles duplicate paragraph text deterministically", () => {
-	const plan = planEvidenceSync(["A", "A", "A"], [
-		{ id: "1", content_hash: hashText("A") },
-		{ id: "2", content_hash: hashText("A") },
-		{ id: "3", content_hash: hashText("old") },
-	]);
+	const plan = planEvidenceSync(
+		["A", "A", "A"],
+		[
+			{ id: "1", content_hash: hashText("A") },
+			{ id: "2", content_hash: hashText("A") },
+			{ id: "3", content_hash: hashText("old") },
+		],
+	);
 
 	assert.equal(plan.items[0]?.existingId, "1");
 	assert.equal(plan.items[1]?.existingId, "2");

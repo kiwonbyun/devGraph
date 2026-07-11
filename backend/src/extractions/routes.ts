@@ -54,39 +54,42 @@ extractionsRouter.post("/extraction-runs/:runId/approve", async (req, res) => {
 	}
 });
 
-extractionsRouter.patch("/extraction-candidates/:candidateId", async (req, res) => {
-	try {
-		if (!isRecord(req.body)) {
-			return res.status(400).json({ error: "invalid body" });
-		}
-		const status = req.body.status;
-		if (
-			status !== undefined &&
-			status !== "pending" &&
-			status !== "rejected"
-		) {
-			return res.status(400).json({ error: "invalid status" });
-		}
+extractionsRouter.patch(
+	"/extraction-candidates/:candidateId",
+	async (req, res) => {
+		try {
+			if (!isRecord(req.body)) {
+				return res.status(400).json({ error: "invalid body" });
+			}
+			const status = req.body.status;
+			if (
+				status !== undefined &&
+				status !== "pending" &&
+				status !== "rejected"
+			) {
+				return res.status(400).json({ error: "invalid status" });
+			}
 
-		const input: Parameters<typeof updateExtractionCandidate>[1] = {};
-		if (status === "pending" || status === "rejected") {
-			input.status = status;
-		}
-		if (Object.hasOwn(req.body, "payload")) {
-			input.payload = req.body.payload;
-		}
+			const input: Parameters<typeof updateExtractionCandidate>[1] = {};
+			if (status === "pending" || status === "rejected") {
+				input.status = status;
+			}
+			if (Object.hasOwn(req.body, "payload")) {
+				input.payload = req.body.payload;
+			}
 
-		const candidate = await updateExtractionCandidate(
-			req.params.candidateId,
-			input,
-		);
-		if (!candidate) return res.status(404).json({ error: "not found" });
-		return res.json(candidate);
-	} catch (error) {
-		console.error("Error updating extraction candidate:", error);
-		res.status(500).json({ error: "internal" });
-	}
-});
+			const candidate = await updateExtractionCandidate(
+				req.params.candidateId,
+				input,
+			);
+			if (!candidate) return res.status(404).json({ error: "not found" });
+			return res.json(candidate);
+		} catch (error) {
+			console.error("Error updating extraction candidate:", error);
+			res.status(500).json({ error: "internal" });
+		}
+	},
+);
 
 extractionsRouter.post(
 	"/extraction-candidates/:candidateId/reject",

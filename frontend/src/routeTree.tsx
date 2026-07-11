@@ -1,5 +1,7 @@
 import { createRootRoute, createRoute } from "@tanstack/react-router";
 import { RootLayout } from "./routes/__root";
+import { AdminLayout } from "./routes/admin";
+import { AdminDashboard } from "./routes/admin.index";
 import { ExtractionRunReview } from "./routes/extraction-runs.$runId";
 import { Home } from "./routes/index";
 import { IndustryNodeDetail } from "./routes/industry-nodes.$nodeId";
@@ -31,9 +33,22 @@ const extractionRunRoute = createRoute({
 	component: ExtractionRunReview,
 });
 
+const adminRoute = createRoute({
+	getParentRoute: () => rootRoute,
+	path: "/admin",
+	component: AdminLayout,
+});
+
+const adminIndexRoute = createRoute({
+	getParentRoute: () => adminRoute,
+	path: "/",
+	component: AdminDashboard,
+});
+
 export const routeTree = rootRoute.addChildren([
 	indexRoute,
 	researchNoteRoute,
 	industryNodeRoute,
 	extractionRunRoute,
+	adminRoute.addChildren([adminIndexRoute]),
 ]);

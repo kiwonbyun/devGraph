@@ -1,4 +1,5 @@
 import express from "express";
+import { authRouter } from "./auth/routes";
 import { config } from "./config";
 import { migrate, pool } from "./db";
 import { extractionsRouter } from "./extractions/routes";
@@ -13,6 +14,7 @@ app.get("/healthz", (_req, res) => {
 	return res.json({ status: "ok" });
 });
 
+app.use("/api/admin", authRouter);
 app.use("/api/research-notes", researchNotesRouter);
 app.use("/api/industry-map", industryMapRouter);
 app.use("/api", extractionsRouter);
