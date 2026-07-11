@@ -2,6 +2,8 @@ import { createRootRoute, createRoute } from "@tanstack/react-router";
 import { RootLayout } from "./routes/__root";
 import { AdminLayout } from "./routes/admin";
 import { AdminDashboard } from "./routes/admin.index";
+import { EditResearchNote } from "./routes/admin.research-notes.$slug";
+import { NewResearchNote } from "./routes/admin.research-notes.new";
 import { ExtractionRunReview } from "./routes/extraction-runs.$runId";
 import { Home } from "./routes/index";
 import { IndustryNodeDetail } from "./routes/industry-nodes.$nodeId";
@@ -45,10 +47,26 @@ const adminIndexRoute = createRoute({
 	component: AdminDashboard,
 });
 
+const adminNewNoteRoute = createRoute({
+	getParentRoute: () => adminRoute,
+	path: "research-notes/new",
+	component: NewResearchNote,
+});
+
+const adminEditNoteRoute = createRoute({
+	getParentRoute: () => adminRoute,
+	path: "research-notes/$slug",
+	component: EditResearchNote,
+});
+
 export const routeTree = rootRoute.addChildren([
 	indexRoute,
 	researchNoteRoute,
 	industryNodeRoute,
 	extractionRunRoute,
-	adminRoute.addChildren([adminIndexRoute]),
+	adminRoute.addChildren([
+		adminIndexRoute,
+		adminNewNoteRoute,
+		adminEditNoteRoute,
+	]),
 ]);

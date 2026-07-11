@@ -5,6 +5,7 @@ import { migrate, pool } from "./db";
 import { extractionsRouter } from "./extractions/routes";
 import { industryMapRouter } from "./industryMap/routes";
 import { ingest } from "./ingest";
+import { adminResearchNotesRouter } from "./researchNotes/adminRoutes";
 import { researchNotesRouter } from "./researchNotes/routes";
 
 const app = express();
@@ -15,6 +16,7 @@ app.get("/healthz", (_req, res) => {
 });
 
 app.use("/api/admin", authRouter);
+app.use("/api/admin/research-notes", adminResearchNotesRouter);
 app.use("/api/research-notes", researchNotesRouter);
 app.use("/api/industry-map", industryMapRouter);
 app.use("/api", extractionsRouter);

@@ -2,6 +2,7 @@ import type {
 	Evidence,
 	ResearchNote,
 	ResearchNoteListItem,
+	ResearchNoteStatus,
 } from "@devgraph/shared";
 import { pool } from "../db";
 import { planEvidenceSync, splitEvidenceParagraphs } from "./evidenceSync";
@@ -78,6 +79,92 @@ export async function getEvidenceForResearchNote(
 		[slug, publishedOnly],
 	);
 	return result.rows;
+}
+
+export interface CreateResearchNoteInput {
+	title: string;
+	body: string;
+}
+
+export async function createResearchNote(
+	input: CreateResearchNoteInput,
+): Promise<ResearchNote> {
+	const slug = await uniqueSlug(slugify(input.title) || "research-note");
+	const result = await pool.query<{ id: string }>(
+		`INSERT INTO research_notes (slug, title, body, source_path, status, updated_at)
+		 VALUES ($1, $2, $3, 'manual', 'draft', now())
+		 RETURNING id`,
+		[slug, input.title, input.body],
+	);
+	const id = result.rows[0]?.id;
+	if (!id) throw new Error("Failed to create research note");
+
+	await syncEvidence(id, splitEvidenceParagraphs(input.body));
+
+	const note = await getResearchNote(slug, false);
+	if (!note) throw new Error("Failed to load created research note");
+	return note;
+}
+
+export interface UpdateResearchNoteInput {
+	title?: string;
+	body?: string;
+	status?: ResearchNoteStatus;
+}
+
+export async function updateResearchNote(
+	slug: string,
+	input: UpdateResearchNoteInput,
+): Promise<ResearchNote | null> {
+	const existing = await getResearchNote(slug, false);
+	if (!existing) return null;
+
+	const title = input.title ?? existing.title;
+	const body = input.body ?? existing.body;
+	const status = input.status ?? existing.status;
+
+	await pool.query(
+		`UPDATE research_notes
+		 SET title = $2, body = $3, status = $4, updated_at = now()
+		 WHERE slug = $1`,
+		[slug, title, body, status],
+	);
+
+	if (input.body !== undefined && input.body !== existing.body) {
+		await syncEvidence(existing.id, splitEvidenceParagraphs(body));
+	}
+
+	return getResearchNote(slug, false);
+}
+
+export async function deleteResearchNote(slug: string): Promise<boolean> {
+	const result = await pool.query(
+		"DELETE FROM research_notes WHERE slug = $1",
+		[slug],
+	);
+	return (result.rowCount ?? 0) > 0;
+}
+
+function slugify(s: string): string {
+	return s
+		.toLowerCase()
+		.trim()
+		.replace(/[^\p{L}\p{N}]+/gu, "-")
+		.replace(/^-+|-+$/g, "");
+}
+
+async function uniqueSlug(base: string): Promise<string> {
+	let candidate = base;
+	let n = 1;
+	for (;;) {
+		const existing = await pool.query(
+			"SELECT 1 FROM research_notes WHERE slug = $1",
+			[candidate],
+		);
+		if (existing.rowCount === 0) return candidate;
+		n += 1;
+		candidate = `${base}-${n}`;
+	}
 }
 
 async function syncEvidence(

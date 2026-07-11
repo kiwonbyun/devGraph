@@ -44,6 +44,29 @@ export const evidenceQueryOptions = (slug: string) =>
 		retry: (failureCount, error) => !isNotFoundError(error) && failureCount < 2,
 	});
 
+// --- 관리자 전용 (모든 상태 포함) ---
+export const adminResearchNotesQueryOptions = queryOptions({
+	queryKey: ["admin", "research-notes"],
+	queryFn: async (): Promise<ResearchNoteListItem[]> => {
+		const { data } = await api.get<ResearchNoteListItem[]>(
+			"/admin/research-notes",
+		);
+		return data;
+	},
+});
+
+export const adminResearchNoteQueryOptions = (slug: string) =>
+	queryOptions({
+		queryKey: ["admin", "research-notes", slug],
+		queryFn: async (): Promise<ResearchNote> => {
+			const { data } = await api.get<ResearchNote>(
+				`/admin/research-notes/${encodeURIComponent(slug)}`,
+			);
+			return data;
+		},
+		retry: (failureCount, error) => !isNotFoundError(error) && failureCount < 2,
+	});
+
 export const industryMapQueryOptions = queryOptions({
 	queryKey: ["industry-map"],
 	queryFn: async (): Promise<IndustryMap> => {
