@@ -1,5 +1,5 @@
-import Anthropic from "@anthropic-ai/sdk";
-import { config, hasAnthropicKey } from "../config";
+import OpenAI from "openai";
+import { config, hasLlmKey } from "../config";
 import type {
 	AliasCandidatePayload,
 	ClusterCandidatePayload,
@@ -32,7 +32,7 @@ export interface LlmExtraction {
 export class LlmNotConfiguredError extends Error {
 	constructor() {
 		super(
-			"ANTHROPIC_API_KEY 가 설정되지 않았습니다. backend/.env 에 키를 넣고 재시작하세요.",
+			"OPENAI_API_KEY 가 설정되지 않았습니다. backend/.env 에 키를 넣고 재시작하세요.",
 		);
 		this.name = "LlmNotConfiguredError";
 	}
@@ -201,11 +201,15 @@ export async function extractGraphCandidates(input: {
 	title: string;
 	evidence: EvidenceInput[];
 }): Promise<LlmExtraction> {
-	if (!hasAnthropicKey()) {
+	if (!hasLlmKey()) {
 		throw new LlmNotConfiguredError();
 	}
 
-	const client = new Anthropic({ apiKey: config.anthropicApiKey });
+	const client = new OpenAI({
+		apiKey: config.openaiApiKey,
+		...(config.openaiBaseUrl ? { baseURL: config.openaiBaseUrl } : {}),
+	});
+
 	const numbered = input.evidence
 		.map((item) => `[${item.ordinal}] ${item.text}`)
 		.join("\n\n");
@@ -216,26 +220,33 @@ export async function extractGraphCandidates(input: {
 
 ${numbered}`;
 
-	const response = await client.messages.create({
-		model: config.anthropicModel,
-		max_tokens: 16000,
-		system: SYSTEM_PROMPT,
-		output_config: {
-			format: { type: "json_schema", schema: CANDIDATE_SCHEMA },
+	// OpenAI Responses API + json_schema 구조화 출력.
+	const response = await client.responses.create({
+		model: config.openaiModel,
+		input: [
+			{ role: "system", content: SYSTEM_PROMPT },
+			{ role: "user", content: userContent },
+		],
+		text: {
+			format: {
+				type: "json_schema",
+				name: "industry_graph_extraction",
+				strict: true,
+				schema: CANDIDATE_SCHEMA,
+			},
 		},
-		messages: [{ role: "user", content: userContent }],
 	});
 
-	const textBlock = response.content.find((block) => block.type === "text");
-	if (!textBlock || textBlock.type !== "text") {
-		throw new Error("LLM 응답에 텍스트 블록이 없습니다.");
+	const text = response.output_text;
+	if (!text) {
+		throw new Error("LLM 응답이 비어 있습니다.");
 	}
 
-	const parsed = JSON.parse(textBlock.text) as ExtractionResult;
+	const parsed = JSON.parse(text) as ExtractionResult;
 	return {
 		result: normalize(parsed),
 		raw: parsed,
-		model: response.model,
+		model: response.model ?? config.openaiModel,
 	};
 }
 
