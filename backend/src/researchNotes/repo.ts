@@ -137,12 +137,96 @@ export async function updateResearchNote(
 	return getResearchNote(slug, false);
 }
 
+// 글을 삭제하면 그 글 근거로 추출됐던 노드/엣지/기업역할도 정리한다.
+// 다른 글이 함께 근거로 쓰는 노드/엣지는 지우지 않고(공유 지식 보존) 이 글의 근거 연결만 사라진다.
 export async function deleteResearchNote(slug: string): Promise<boolean> {
-	const result = await pool.query(
-		"DELETE FROM research_notes WHERE slug = $1",
-		[slug],
-	);
-	return (result.rowCount ?? 0) > 0;
+	const client = await pool.connect();
+	try {
+		await client.query("BEGIN");
+
+		const note = await client.query<{ id: string }>(
+			"SELECT id FROM research_notes WHERE slug = $1",
+			[slug],
+		);
+		const noteId = note.rows[0]?.id;
+		if (!noteId) {
+			await client.query("ROLLBACK");
+			return false;
+		}
+
+		// 삭제 전에 이 글 근거로 연결된 노드/엣지/기업역할 id 를 수집한다
+		// (글을 지우면 근거 연결이 cascade 로 사라져 더 이상 못 찾는다).
+		const nodeIds = (
+			await client.query<{ id: string }>(
+				`SELECT DISTINCT ine.industry_node_id AS id
+				 FROM industry_node_evidence ine
+				 JOIN evidence e ON e.id = ine.evidence_id
+				 WHERE e.research_note_id = $1`,
+				[noteId],
+			)
+		).rows.map((r) => r.id);
+		const edgeIds = (
+			await client.query<{ id: string }>(
+				`SELECT DISTINCT iee.industry_edge_id AS id
+				 FROM industry_edge_evidence iee
+				 JOIN evidence e ON e.id = iee.evidence_id
+				 WHERE e.research_note_id = $1`,
+				[noteId],
+			)
+		).rows.map((r) => r.id);
+		const roleIds = (
+			await client.query<{ id: string }>(
+				`SELECT cr.id
+				 FROM company_roles cr
+				 JOIN evidence e ON e.id = cr.evidence_id
+				 WHERE e.research_note_id = $1`,
+				[noteId],
+			)
+		).rows.map((r) => r.id);
+
+		// 글 삭제: evidence·근거링크·추출run·후보 cascade, company_roles.evidence_id→NULL
+		await client.query("DELETE FROM research_notes WHERE id = $1", [noteId]);
+
+		// 이 글이 만든 기업 역할 제거(노드가 남아도 이 글의 주장은 삭제)
+		if (roleIds.length > 0) {
+			await client.query(
+				"DELETE FROM company_roles WHERE id = ANY($1::bigint[])",
+				[roleIds],
+			);
+		}
+
+		// 남은 근거가 하나도 없어 고아가 된 노드 삭제(엣지/역할/관계/별칭/클러스터링크 cascade)
+		if (nodeIds.length > 0) {
+			await client.query(
+				`DELETE FROM industry_nodes n
+				 WHERE n.id = ANY($1::bigint[])
+				   AND NOT EXISTS (
+				     SELECT 1 FROM industry_node_evidence x WHERE x.industry_node_id = n.id
+				   )`,
+				[nodeIds],
+			);
+		}
+
+		// 노드 삭제 후에도 남아있는 엣지 중 고아(근거 없음) 삭제
+		if (edgeIds.length > 0) {
+			await client.query(
+				`DELETE FROM industry_edges ed
+				 WHERE ed.id = ANY($1::bigint[])
+				   AND NOT EXISTS (
+				     SELECT 1 FROM industry_edge_evidence x WHERE x.industry_edge_id = ed.id
+				   )`,
+				[edgeIds],
+			);
+		}
+
+		await client.query("COMMIT");
+		return true;
+	} catch (error) {
+		await client.query("ROLLBACK");
+		throw error;
+	} finally {
+		client.release();
+	}
 }
 
 function slugify(s: string): string {

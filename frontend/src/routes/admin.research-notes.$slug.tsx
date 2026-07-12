@@ -2,6 +2,7 @@ import type { ResearchNote } from "@devgraph/shared";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { useState } from "react";
+import { ConfirmModal } from "../components/ConfirmModal";
 import { NoteEditor } from "../components/NoteEditor";
 import { api, isNotFoundError } from "../lib/api";
 import {
@@ -19,6 +20,7 @@ export function EditResearchNote() {
 	const [saving, setSaving] = useState(false);
 	const [saveError, setSaveError] = useState<string | null>(null);
 	const [busy, setBusy] = useState(false);
+	const [confirmDelete, setConfirmDelete] = useState(false);
 
 	if (isPending) {
 		return <p className="font-mono text-slate-400 text-sm">불러오는 중…</p>;
@@ -59,12 +61,13 @@ export function EditResearchNote() {
 		}
 	}
 
-	async function remove() {
-		if (!window.confirm("이 리서치 글을 삭제할까요?")) return;
+	async function doDelete() {
 		setBusy(true);
 		try {
 			await api.delete(`/admin/research-notes/${encodeURIComponent(slug)}`);
+			await queryClient.invalidateQueries({ queryKey: ["industry-map"] });
 			await invalidate();
+			setConfirmDelete(false);
 			await navigate({ to: "/admin" });
 		} finally {
 			setBusy(false);
@@ -96,13 +99,23 @@ export function EditResearchNote() {
 					<button
 						type="button"
 						disabled={busy}
-						onClick={remove}
+						onClick={() => setConfirmDelete(true)}
 						className="rounded border border-red-200 px-3 py-1.5 font-medium text-red-700 text-xs transition hover:bg-red-50 disabled:opacity-50"
 					>
 						삭제
 					</button>
 				</div>
 			</div>
+
+			<ConfirmModal
+				open={confirmDelete}
+				title="리서치 글을 삭제할까요?"
+				message="이 글과 근거 문단, 그리고 이 글에서만 추출된 노드·엣지·기업 역할이 함께 삭제됩니다. 되돌릴 수 없습니다."
+				confirmLabel="삭제"
+				busy={busy}
+				onConfirm={doDelete}
+				onCancel={() => setConfirmDelete(false)}
+			/>
 
 			<ExtractionPanel slug={slug} />
 
