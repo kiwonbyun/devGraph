@@ -329,9 +329,13 @@ function NodeDetailPanel({
 	);
 	const incoming = map.edges.filter((e) => e.target_node_id === node.id).length;
 	const outgoing = map.edges.filter((e) => e.source_node_id === node.id).length;
-	const evidenceCount = map.node_evidence.filter(
+	const nodeEvidence = map.node_evidence.filter(
 		(item) => item.industry_node_id === node.id,
-	).length;
+	);
+	const evidenceCount = nodeEvidence.length;
+	const sourceCount = new Set(
+		nodeEvidence.map((item) => item.research_note_slug),
+	).size;
 	const aliases = map.aliases.filter((a) => a.node_id === node.id);
 
 	return (
@@ -373,6 +377,11 @@ function NodeDetailPanel({
 				<Metric label="관계" value={incoming + outgoing} />
 				<Metric label="근거" value={evidenceCount} />
 			</div>
+			{sourceCount > 0 ? (
+				<p className="mt-2 text-center font-mono text-[10px] text-slate-400">
+					{sourceCount}개 리서치가 뒷받침
+				</p>
+			) : null}
 			{companyRoles.length > 0 ? (
 				<div className="mt-4">
 					<p className="mb-2 font-semibold text-slate-950 text-sm">관련 기업</p>

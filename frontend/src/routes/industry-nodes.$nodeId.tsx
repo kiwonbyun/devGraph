@@ -55,6 +55,21 @@ function NodeDetailContent({
 	const nodeById = new Map(map.nodes.map((item) => [item.id, item]));
 	useDocumentMeta(node.canonical_name, node.description ?? undefined);
 
+	// 근거를 리서치 글별로 묶어 출처 흐름과 근거 강도를 보여준다.
+	const evidenceByNote = new Map<
+		string,
+		{ title: string; items: typeof evidence }
+	>();
+	for (const item of evidence) {
+		const group = evidenceByNote.get(item.research_note_slug) ?? {
+			title: item.research_note_title,
+			items: [],
+		};
+		group.items.push(item);
+		evidenceByNote.set(item.research_note_slug, group);
+	}
+	const sourceCount = evidenceByNote.size;
+
 	return (
 		<div className="mx-auto max-w-3xl">
 			<BackLink />
@@ -78,6 +93,13 @@ function NodeDetailContent({
 								{alias.alias}
 							</span>
 						))}
+					</p>
+				) : null}
+				{evidence.length > 0 ? (
+					<p className="mt-3 inline-flex items-center gap-2 rounded bg-slate-50 px-2.5 py-1 font-mono text-slate-500 text-xs">
+						<span>근거 {evidence.length}개</span>
+						<span className="text-slate-300">·</span>
+						<span>리서치 {sourceCount}개</span>
 					</p>
 				) : null}
 			</header>
@@ -142,25 +164,42 @@ function NodeDetailContent({
 				{evidence.length === 0 ? (
 					<EmptyText>아직 연결된 근거 문단이 없습니다.</EmptyText>
 				) : (
-					<ol className="space-y-4">
-						{evidence.map((item) => (
-							<li
-								key={item.evidence_id}
+					<div className="space-y-5">
+						{[...evidenceByNote.entries()].map(([slug, group]) => (
+							<div
+								key={slug}
 								className="rounded border border-slate-200 bg-white p-4"
 							>
-								<Link
-									to="/research-notes/$slug"
-									params={{ slug: item.research_note_slug }}
-									className="font-mono text-indigo-600 text-xs hover:text-indigo-700"
-								>
-									{item.research_note_title} #{item.ordinal}
-								</Link>
-								<p className="mt-2 whitespace-pre-line text-slate-700 text-sm leading-6">
-									{item.text}
-								</p>
-							</li>
+								<div className="mb-2 flex items-center justify-between">
+									<Link
+										to="/research-notes/$slug"
+										params={{ slug }}
+										className="font-medium text-indigo-600 text-sm hover:text-indigo-700"
+									>
+										{group.title}
+									</Link>
+									<span className="font-mono text-slate-400 text-xs">
+										근거 {group.items.length}개
+									</span>
+								</div>
+								<ol className="space-y-2">
+									{group.items.map((item) => (
+										<li
+											key={item.evidence_id}
+											className="border-slate-200 border-l-2 py-1 pl-3"
+										>
+											<span className="mb-1 block font-mono text-slate-400 text-xs">
+												#{item.ordinal}
+											</span>
+											<p className="whitespace-pre-line text-slate-700 text-sm leading-6">
+												{item.text}
+											</p>
+										</li>
+									))}
+								</ol>
+							</div>
 						))}
-					</ol>
+					</div>
 				)}
 			</DetailSection>
 		</div>
