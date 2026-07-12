@@ -27,6 +27,12 @@ export function AdminLayout() {
 						리서치 글
 					</Link>
 					<Link
+						to="/admin/audit"
+						className="text-slate-500 transition-colors [&.active]:font-semibold [&.active]:text-indigo-600"
+					>
+						감사 로그
+					</Link>
+					<Link
 						to="/"
 						className="text-slate-400 transition-colors hover:text-indigo-600"
 					>

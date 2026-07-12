@@ -2,6 +2,7 @@ import type {
 	Evidence,
 	ExtractionRunDetail,
 	ExtractionRunListItem,
+	GraphRevisionItem,
 	IndustryMap,
 	ResearchNote,
 	ResearchNoteListItem,
@@ -78,6 +79,16 @@ export const adminEvidenceQueryOptions = (slug: string) =>
 		},
 		retry: (failureCount, error) => !isNotFoundError(error) && failureCount < 2,
 	});
+
+export const adminGraphRevisionsQueryOptions = queryOptions({
+	queryKey: ["admin", "graph-revisions"],
+	queryFn: async (): Promise<GraphRevisionItem[]> => {
+		const { data } = await api.get<GraphRevisionItem[]>(
+			"/admin/graph-revisions",
+		);
+		return data;
+	},
+});
 
 export const industryMapQueryOptions = queryOptions({
 	queryKey: ["industry-map"],

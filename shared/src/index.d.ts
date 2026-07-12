@@ -161,3 +161,16 @@ export interface ExtractionRunDetail extends ExtractionRunListItem {
 	research_note_title: string;
 	candidates: ExtractionCandidate[];
 }
+
+export interface GraphRevisionItem {
+	id: string;
+	entity_type: string;
+	entity_id: string | null;
+	action: "create" | "update" | "deactivate" | "delete";
+	research_note_title: string | null;
+	research_note_slug: string | null;
+	extraction_run_id: string | null;
+	extraction_run_source: string | null;
+	detail: unknown;
+	created_at: string;
+}
