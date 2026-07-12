@@ -8,6 +8,7 @@ import {
 	createSampleExtractionRun,
 	getExtractionRunDetail,
 	getExtractionRuns,
+	searchCompanies,
 	searchIndustryNodes,
 	updateExtractionCandidate,
 } from "./repo";
@@ -83,6 +84,16 @@ extractionsRouter.get("/industry-nodes/search", async (req, res) => {
 		res.json(await searchIndustryNodes(q));
 	} catch (error) {
 		console.error("Error searching industry nodes:", error);
+		res.status(500).json({ error: "internal" });
+	}
+});
+
+extractionsRouter.get("/companies/search", async (req, res) => {
+	try {
+		const q = typeof req.query.q === "string" ? req.query.q : "";
+		res.json(await searchCompanies(q));
+	} catch (error) {
+		console.error("Error searching companies:", error);
 		res.status(500).json({ error: "internal" });
 	}
 });

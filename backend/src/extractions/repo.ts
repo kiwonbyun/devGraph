@@ -311,6 +311,28 @@ export async function searchIndustryNodes(
 	return result.rows;
 }
 
+// 기업 병합 제안용: 이름 또는 별칭으로 기존 기업 검색.
+export async function searchCompanies(
+	q: string,
+): Promise<{ id: string; name: string; is_listed: boolean }[]> {
+	const query = q.trim();
+	if (!query) return [];
+	const result = await pool.query<{
+		id: string;
+		name: string;
+		is_listed: boolean;
+	}>(
+		`SELECT DISTINCT c.id, c.name, c.is_listed
+		 FROM companies c
+		 LEFT JOIN company_aliases ca ON ca.company_id = c.id
+		 WHERE c.name ILIKE '%' || $1 || '%' OR ca.alias ILIKE '%' || $1 || '%'
+		 ORDER BY c.name ASC
+		 LIMIT 10`,
+		[query],
+	);
+	return result.rows;
+}
+
 export async function approveExtractionRun(runId: string): Promise<void> {
 	const detail = await getExtractionRunDetail(runId);
 	if (!detail) throw new Error(`Extraction run not found: ${runId}`);
@@ -684,6 +706,26 @@ async function getOrCreateCompany(
 	client: Pick<typeof pool, "query">,
 	payload: CompanyRoleCandidatePayload,
 ): Promise<string> {
+	// 검수에서 기존 기업과 병합하도록 지정한 경우 그 기업을 canonical 로 쓰고,
+	// 후보 이름이 다르면 별칭으로 보존한다.
+	if (payload.merge_into_company_id) {
+		const merged = await client.query<{ id: string; name: string }>(
+			"SELECT id, name FROM companies WHERE id = $1",
+			[payload.merge_into_company_id],
+		);
+		const row = merged.rows[0];
+		if (row) {
+			if (payload.company_name && payload.company_name !== row.name) {
+				await client.query(
+					`INSERT INTO company_aliases (company_id, alias)
+					 VALUES ($1, $2) ON CONFLICT (company_id, alias) DO NOTHING`,
+					[row.id, payload.company_name],
+				);
+			}
+			return row.id;
+		}
+	}
+
 	const insert = await client.query<{ id: string }>(
 		`INSERT INTO companies (name, is_listed, ticker, updated_at)
 		 VALUES ($1, $2, $3, now())

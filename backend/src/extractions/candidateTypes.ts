@@ -37,6 +37,8 @@ export interface CompanyRoleCandidatePayload {
 	node_key: string;
 	role: string;
 	evidence_ordinal: number;
+	// 검수에서 기존 기업과 병합할 경우 그 기업 id.
+	merge_into_company_id?: string | null;
 }
 
 // 계층 관계: same_as 는 쓰지 않고 is_a / part_of 만 사용 (GOAL.md).

@@ -1,5 +1,6 @@
 import dagre from "@dagrejs/dagre";
 import type {
+	CompanySearchResult,
 	Evidence,
 	ExtractionCandidate,
 	IndustryEdgeType,
@@ -47,6 +48,7 @@ interface CompanyRolePayload {
 	node_key: string;
 	role: string;
 	evidence_ordinal: number;
+	merge_into_company_id?: string | null;
 }
 interface RelationPayload {
 	source_key: string;
@@ -851,6 +853,16 @@ function CompanyCard({
 	onChanged: () => Promise<void>;
 }) {
 	const c = useCandidateCard<CompanyRolePayload>(candidate);
+	const [query, setQuery] = useState("");
+	const [results, setResults] = useState<CompanySearchResult[]>([]);
+
+	async function searchCompany() {
+		const { data } = await api.get<CompanySearchResult[]>(
+			`/admin/companies/search?q=${encodeURIComponent(query)}`,
+		);
+		setResults(data);
+	}
+
 	return (
 		<CardShell
 			badge="company"
@@ -923,6 +935,59 @@ function CompanyCard({
 					}
 				/>
 			</Field>
+			<div className="rounded bg-slate-50 p-2">
+				{c.draft.merge_into_company_id ? (
+					<div className="flex items-center justify-between text-xs">
+						<span className="text-emerald-700">
+							기존 기업 #{c.draft.merge_into_company_id} 와 병합
+						</span>
+						<button
+							type="button"
+							className="font-mono text-slate-400 hover:text-slate-700"
+							onClick={() =>
+								c.setDraft({ ...c.draft, merge_into_company_id: null })
+							}
+						>
+							해제
+						</button>
+					</div>
+				) : (
+					<div className="flex gap-1">
+						<input
+							className={inputCls}
+							placeholder="기존 기업 검색(병합)"
+							value={query}
+							onChange={(e) => setQuery(e.target.value)}
+						/>
+						<button
+							type="button"
+							className="rounded border border-slate-200 px-2 text-slate-500 text-xs hover:bg-slate-100"
+							onClick={searchCompany}
+						>
+							검색
+						</button>
+					</div>
+				)}
+				{results.length > 0 && !c.draft.merge_into_company_id ? (
+					<ul className="mt-1 space-y-0.5">
+						{results.map((r) => (
+							<li key={r.id}>
+								<button
+									type="button"
+									className="text-indigo-600 text-xs hover:underline"
+									onClick={() => {
+										c.setDraft({ ...c.draft, merge_into_company_id: r.id });
+										setResults([]);
+									}}
+								>
+									{r.name}
+									{r.is_listed ? " (상장)" : ""}
+								</button>
+							</li>
+						))}
+					</ul>
+				) : null}
+			</div>
 		</CardShell>
 	);
 }

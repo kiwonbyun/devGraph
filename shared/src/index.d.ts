@@ -55,6 +55,12 @@ export interface IndustryNodeSearchResult {
 	node_type: IndustryNodeType;
 }
 
+export interface CompanySearchResult {
+	id: string;
+	name: string;
+	is_listed: boolean;
+}
+
 export interface IndustryEdge {
 	id: string;
 	source_node_id: string;
