@@ -1,5 +1,10 @@
+import { spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import OpenAI from "openai";
-import { config, hasLlmKey } from "../config";
+import { config, hasOpenaiKey } from "../config";
 import type {
 	AliasCandidatePayload,
 	ClusterCandidatePayload,
@@ -30,10 +35,8 @@ export interface LlmExtraction {
 }
 
 export class LlmNotConfiguredError extends Error {
-	constructor() {
-		super(
-			"OPENAI_API_KEY 가 설정되지 않았습니다. backend/.env 에 키를 넣고 재시작하세요.",
-		);
+	constructor(message: string) {
+		super(message);
 		this.name = "LlmNotConfiguredError";
 	}
 }
@@ -197,12 +200,121 @@ const CANDIDATE_SCHEMA = {
 	},
 } as const;
 
+function buildUserPrompt(input: {
+	title: string;
+	evidence: EvidenceInput[];
+}): string {
+	const numbered = input.evidence
+		.map((item) => `[${item.ordinal}] ${item.text}`)
+		.join("\n\n");
+	return `리서치 글 제목: ${input.title}
+
+아래는 문단 번호가 붙은 근거 문단들이다. 각 후보의 evidence_ordinal(s) 는 반드시 이 번호들 중에서 고른다.
+
+${numbered}`;
+}
+
 export async function extractGraphCandidates(input: {
 	title: string;
 	evidence: EvidenceInput[];
 }): Promise<LlmExtraction> {
-	if (!hasLlmKey()) {
-		throw new LlmNotConfiguredError();
+	if (config.llmProvider === "openai") {
+		return extractViaOpenAI(input);
+	}
+	return extractViaCodex(input);
+}
+
+// --- Codex CLI 경로: 로컬 Codex 를 ChatGPT 로그인으로 사용 (API 키 불필요) ---
+async function extractViaCodex(input: {
+	title: string;
+	evidence: EvidenceInput[];
+}): Promise<LlmExtraction> {
+	const prompt = `${SYSTEM_PROMPT}\n\n${buildUserPrompt(input)}\n\n주어진 JSON 스키마에 정확히 맞는 JSON 하나만 출력하라.`;
+
+	const dir = mkdtempSync(join(tmpdir(), "devgraph-codex-"));
+	const schemaPath = join(dir, "schema.json");
+	const outPath = join(dir, `out-${randomUUID()}.txt`);
+	writeFileSync(schemaPath, JSON.stringify(CANDIDATE_SCHEMA));
+
+	try {
+		const args = [
+			"exec",
+			"--skip-git-repo-check",
+			"--sandbox",
+			"read-only",
+			"--output-schema",
+			schemaPath,
+			"--output-last-message",
+			outPath,
+		];
+		if (config.codexModel) args.push("-m", config.codexModel);
+		args.push(prompt);
+
+		const { code, stderr } = await runCodex(args, dir);
+		let text = "";
+		try {
+			text = readFileSync(outPath, "utf8").trim();
+		} catch {
+			text = "";
+		}
+		if (!text) {
+			const hint = /not logged in|Please run .*login|auth/i.test(stderr)
+				? " (codex 로그인 필요: `codex login`)"
+				: "";
+			throw new LlmNotConfiguredError(
+				`Codex CLI 추출에 실패했습니다 (exit ${code})${hint}. ${stderr.slice(-400)}`,
+			);
+		}
+
+		const parsed = parseJsonLoose(text);
+		return {
+			result: normalize(parsed),
+			raw: parsed,
+			model: config.codexModel || "codex(chatgpt)",
+		};
+	} finally {
+		rmSync(dir, { recursive: true, force: true });
+	}
+}
+
+function runCodex(
+	args: string[],
+	cwd: string,
+): Promise<{ code: number | null; stdout: string; stderr: string }> {
+	return new Promise((resolve, reject) => {
+		const child = spawn(config.codexBin, args, {
+			cwd,
+			stdio: ["ignore", "pipe", "pipe"],
+			timeout: 180_000,
+		});
+		let stdout = "";
+		let stderr = "";
+		child.stdout.on("data", (d) => {
+			stdout += d.toString();
+		});
+		child.stderr.on("data", (d) => {
+			stderr += d.toString();
+		});
+		child.on("error", (err) => {
+			reject(
+				new LlmNotConfiguredError(
+					`Codex CLI 실행 실패 (${config.codexBin}): ${err.message}. codex 설치/PATH 및 \`codex login\` 확인.`,
+				),
+			);
+		});
+		child.on("close", (code) => resolve({ code, stdout, stderr }));
+	});
+}
+
+// --- OpenAI API 경로: API 키 종량제 ---
+async function extractViaOpenAI(input: {
+	title: string;
+	evidence: EvidenceInput[];
+}): Promise<LlmExtraction> {
+	if (!hasOpenaiKey()) {
+		throw new LlmNotConfiguredError(
+			"OPENAI_API_KEY 가 설정되지 않았습니다. backend/.env 에 키를 넣고 재시작하세요.",
+		);
 	}
 
 	const client = new OpenAI({
@@ -210,22 +322,11 @@ export async function extractGraphCandidates(input: {
 		...(config.openaiBaseUrl ? { baseURL: config.openaiBaseUrl } : {}),
 	});
 
-	const numbered = input.evidence
-		.map((item) => `[${item.ordinal}] ${item.text}`)
-		.join("\n\n");
-
-	const userContent = `리서치 글 제목: ${input.title}
-
-아래는 문단 번호가 붙은 근거 문단들이다. 각 후보의 evidence_ordinal(s) 는 반드시 이 번호들 중에서 고른다.
-
-${numbered}`;
-
-	// OpenAI Responses API + json_schema 구조화 출력.
 	const response = await client.responses.create({
 		model: config.openaiModel,
 		input: [
 			{ role: "system", content: SYSTEM_PROMPT },
-			{ role: "user", content: userContent },
+			{ role: "user", content: buildUserPrompt(input) },
 		],
 		text: {
 			format: {
@@ -238,16 +339,29 @@ ${numbered}`;
 	});
 
 	const text = response.output_text;
-	if (!text) {
-		throw new Error("LLM 응답이 비어 있습니다.");
-	}
+	if (!text) throw new Error("LLM 응답이 비어 있습니다.");
 
-	const parsed = JSON.parse(text) as ExtractionResult;
+	const parsed = parseJsonLoose(text);
 	return {
 		result: normalize(parsed),
 		raw: parsed,
 		model: response.model ?? config.openaiModel,
 	};
+}
+
+function parseJsonLoose(text: string): Partial<ExtractionResult> {
+	try {
+		return JSON.parse(text) as Partial<ExtractionResult>;
+	} catch {
+		const start = text.indexOf("{");
+		const end = text.lastIndexOf("}");
+		if (start >= 0 && end > start) {
+			return JSON.parse(
+				text.slice(start, end + 1),
+			) as Partial<ExtractionResult>;
+		}
+		throw new Error("LLM 응답을 JSON 으로 파싱하지 못했습니다.");
+	}
 }
 
 function normalize(result: Partial<ExtractionResult>): ExtractionResult {

@@ -7,7 +7,7 @@
 - backend: Node 22 + Express 5 + raw `pg` (PostgreSQL, pgvector 이미지)
 - frontend: React 19 + Vite + TanStack Router/Query + @xyflow/react + Tailwind 4
 - shared: `@devgraph/shared` 타입 패키지 (pnpm workspace)
-- LLM 추출: OpenAI/Codex (`openai` SDK, Responses API + json_schema 구조화 출력)
+- LLM 추출: **Codex CLI(기본, ChatGPT 구독 사용·API 키 불필요)** 또는 OpenAI API(`openai` SDK). `LLM_PROVIDER`로 전환. json_schema 구조화 출력.
 
 ## 로컬 실행
 
@@ -39,8 +39,11 @@ pnpm --filter frontend dev             # http://localhost:5173  (/api → :8080 
 | `DATABASE_URL` | `postgresql://devgraph:devgraph@localhost:5432/devgraph` |
 | `ADMIN_PASSWORD` | 단일 관리자 로그인 비밀번호 |
 | `SESSION_SECRET` | 세션 쿠키 서명 키 |
-| `OPENAI_API_KEY` | **실제 LLM 추출용(OpenAI/Codex).** 비어 있으면 "AI 추출 실행"이 명확한 에러를 반환한다. 키를 넣고 재시작하면 실제 추출이 동작. |
-| `OPENAI_MODEL` | 기본 `gpt-5-codex` (env 로 교체 가능) |
+| `LLM_PROVIDER` | `codex`(기본) 또는 `openai`. codex는 로컬 Codex CLI를 ChatGPT 로그인으로 사용 → **API 키 불필요**(ChatGPT 구독 사용량). |
+| `CODEX_BIN` | codex 실행 경로(기본 `codex`). PATH에 없으면 절대경로 지정. 사전에 `codex login`(ChatGPT) 필요. |
+| `CODEX_MODEL` | (선택) 비우면 Codex 기본 모델 |
+| `OPENAI_API_KEY` | `LLM_PROVIDER=openai` 일 때만. 비어 있으면 "AI 추출 실행"이 명확한 에러 반환. |
+| `OPENAI_MODEL` | 기본 `gpt-5-codex` (openai 경로) |
 | `OPENAI_BASE_URL` | (선택) Azure/프록시 등 base URL 재정의 |
 
 ## 마이그레이션
