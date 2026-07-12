@@ -4,6 +4,7 @@ import { authRouter } from "./auth/routes";
 import { config } from "./config";
 import { migrate, pool } from "./db";
 import { extractionsRouter } from "./extractions/routes";
+import { adminIndustryMapRouter } from "./industryMap/adminRoutes";
 import { industryMapRouter } from "./industryMap/routes";
 import { ingest } from "./ingest";
 import { adminResearchNotesRouter } from "./researchNotes/adminRoutes";
@@ -18,6 +19,7 @@ app.get("/healthz", (_req, res) => {
 
 app.use("/api/admin", authRouter);
 app.use("/api/admin", auditRouter);
+app.use("/api/admin", adminIndustryMapRouter);
 app.use("/api/admin/research-notes", adminResearchNotesRouter);
 app.use("/api/admin", extractionsRouter);
 app.use("/api/research-notes", researchNotesRouter);

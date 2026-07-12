@@ -45,6 +45,8 @@ export interface IndustryNode {
 	canonical_name: string;
 	node_type: IndustryNodeType;
 	description: string | null;
+	pos_x: number | null;
+	pos_y: number | null;
 }
 
 export interface IndustryNodeSearchResult {

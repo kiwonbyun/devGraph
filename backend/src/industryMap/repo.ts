@@ -13,7 +13,7 @@ export async function getIndustryMap(): Promise<IndustryMap> {
 		clusters,
 	] = await Promise.all([
 		pool.query(`
-            SELECT id, canonical_name, node_type, description
+            SELECT id, canonical_name, node_type, description, pos_x, pos_y
             FROM industry_nodes
             WHERE is_active = TRUE
             ORDER BY id ASC`),
@@ -97,4 +97,27 @@ export async function getIndustryMap(): Promise<IndustryMap> {
 		aliases: aliases.rows,
 		clusters: clusters.rows,
 	};
+}
+
+// 관리자가 조정한 노드 좌표를 일괄 저장한다.
+export async function saveNodePositions(
+	positions: { id: string; x: number; y: number }[],
+): Promise<void> {
+	if (positions.length === 0) return;
+	const client = await pool.connect();
+	try {
+		await client.query("BEGIN");
+		for (const p of positions) {
+			await client.query(
+				"UPDATE industry_nodes SET pos_x = $2, pos_y = $3, updated_at = now() WHERE id = $1",
+				[p.id, p.x, p.y],
+			);
+		}
+		await client.query("COMMIT");
+	} catch (error) {
+		await client.query("ROLLBACK");
+		throw error;
+	} finally {
+		client.release();
+	}
 }

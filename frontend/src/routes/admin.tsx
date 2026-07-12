@@ -27,6 +27,12 @@ export function AdminLayout() {
 						리서치 글
 					</Link>
 					<Link
+						to="/admin/map"
+						className="text-slate-500 transition-colors [&.active]:font-semibold [&.active]:text-indigo-600"
+					>
+						지도 편집
+					</Link>
+					<Link
 						to="/admin/audit"
 						className="text-slate-500 transition-colors [&.active]:font-semibold [&.active]:text-indigo-600"
 					>

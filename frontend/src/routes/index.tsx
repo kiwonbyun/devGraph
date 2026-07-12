@@ -530,15 +530,17 @@ function buildFlowGraph(
 		filters.edgeTypes.size > 0;
 
 	const flowNodes: IndustryFlowNode[] = map.nodes.map((node) => {
-		const position = graph.node(node.id) as { x: number; y: number };
+		const laid = graph.node(node.id) as { x: number; y: number };
 		const dimmed = filtersActive && !matchedNodeIds.has(node.id);
+		// 관리자가 저장한 좌표가 있으면 그대로 쓰고, 없으면 자동 레이아웃.
+		const position =
+			node.pos_x != null && node.pos_y != null
+				? { x: node.pos_x, y: node.pos_y }
+				: { x: laid.x - NODE_WIDTH / 2, y: laid.y - NODE_HEIGHT / 2 };
 		return {
 			id: node.id,
 			type: "industryNode",
-			position: {
-				x: position.x - NODE_WIDTH / 2,
-				y: position.y - NODE_HEIGHT / 2,
-			},
+			position,
 			data: { node, dimmed },
 			selected: node.id === selectedNodeId,
 			sourcePosition: Position.Bottom,

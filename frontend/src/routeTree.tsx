@@ -3,6 +3,7 @@ import { RootLayout } from "./routes/__root";
 import { AdminLayout } from "./routes/admin";
 import { AuditLog } from "./routes/admin.audit";
 import { AdminDashboard } from "./routes/admin.index";
+import { AdminMap } from "./routes/admin.map";
 import { EditResearchNote } from "./routes/admin.research-notes.$slug";
 import { NewResearchNote } from "./routes/admin.research-notes.new";
 import { ExtractionRunReview } from "./routes/extraction-runs.$runId";
@@ -54,6 +55,12 @@ const adminAuditRoute = createRoute({
 	component: AuditLog,
 });
 
+const adminMapRoute = createRoute({
+	getParentRoute: () => adminRoute,
+	path: "map",
+	component: AdminMap,
+});
+
 const adminNewNoteRoute = createRoute({
 	getParentRoute: () => adminRoute,
 	path: "research-notes/new",
@@ -73,6 +80,7 @@ export const routeTree = rootRoute.addChildren([
 	adminRoute.addChildren([
 		adminIndexRoute,
 		adminAuditRoute,
+		adminMapRoute,
 		adminNewNoteRoute,
 		adminEditNoteRoute,
 		adminExtractionRunRoute,
