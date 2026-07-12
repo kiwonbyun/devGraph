@@ -146,6 +146,15 @@ export function ExtractionRunReview() {
 					<p className="mt-1 font-mono text-slate-400 text-xs">
 						run #{data.id} · {data.source} · {data.status}
 					</p>
+					{data.model || data.prompt_version || data.input_note_version ? (
+						<p className="mt-0.5 font-mono text-[10px] text-slate-400">
+							{data.model ? `model ${data.model}` : null}
+							{data.prompt_version ? ` · prompt ${data.prompt_version}` : null}
+							{data.input_note_version
+								? ` · 입력 글 ${new Date(data.input_note_version).toLocaleString("ko-KR")}`
+								: null}
+						</p>
+					) : null}
 				</div>
 				<button
 					type="button"

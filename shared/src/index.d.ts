@@ -161,6 +161,9 @@ export interface ExtractionCandidate {
 export interface ExtractionRunDetail extends ExtractionRunListItem {
 	research_note_slug: string;
 	research_note_title: string;
+	model: string | null;
+	prompt_version: string | null;
+	input_note_version: string | null;
 	candidates: ExtractionCandidate[];
 }
 

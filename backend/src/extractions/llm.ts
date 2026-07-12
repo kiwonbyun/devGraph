@@ -34,6 +34,9 @@ export interface LlmExtraction {
 	model: string;
 }
 
+// 추출 프롬프트/스키마를 바꿀 때 올린다. 실행 메타데이터로 보존된다.
+export const PROMPT_VERSION = "2026-07-12.1";
+
 export class LlmNotConfiguredError extends Error {
 	constructor(message: string) {
 		super(message);

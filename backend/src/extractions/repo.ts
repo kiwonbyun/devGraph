@@ -24,6 +24,7 @@ import {
 	type ExtractionResult,
 	extractGraphCandidates,
 	LlmNotConfiguredError,
+	PROMPT_VERSION,
 } from "./llm";
 import {
 	sampleAliasCandidates,
@@ -86,10 +87,13 @@ export async function createSampleExtractionRun(
 export async function createLlmExtractionRun(
 	slug: string,
 ): Promise<{ id: string }> {
-	const note = await pool.query<{ id: string; title: string }>(
-		"SELECT id, title FROM research_notes WHERE slug = $1",
-		[slug],
-	);
+	const note = await pool.query<{
+		id: string;
+		title: string;
+		updated_at: string;
+	}>("SELECT id, title, updated_at FROM research_notes WHERE slug = $1", [
+		slug,
+	]);
 	const researchNote = note.rows[0];
 	if (!researchNote) {
 		throw new Error(`Research note not found: ${slug}`);
@@ -125,8 +129,17 @@ export async function createLlmExtractionRun(
 				extraction.result,
 			);
 			await client.query(
-				"UPDATE extraction_runs SET raw_response = $2, model = $3, updated_at = now() WHERE id = $1",
-				[runId, JSON.stringify(extraction.raw), extraction.model],
+				`UPDATE extraction_runs
+				 SET raw_response = $2, model = $3, prompt_version = $4,
+				     input_note_version = $5, updated_at = now()
+				 WHERE id = $1`,
+				[
+					runId,
+					JSON.stringify(extraction.raw),
+					extraction.model,
+					PROMPT_VERSION,
+					researchNote.updated_at,
+				],
 			);
 			await client.query("COMMIT");
 		} catch (error) {
@@ -178,6 +191,9 @@ export async function getExtractionRunDetail(
             r.source,
             r.created_at,
             r.updated_at,
+            r.model,
+            r.prompt_version,
+            r.input_note_version,
             n.slug AS research_note_slug,
             n.title AS research_note_title
         FROM extraction_runs r
